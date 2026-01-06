@@ -12,7 +12,14 @@
   font-weight: 400;
 
   color: #0f0f0f;
-  background-color: #f6f6f6;
+  background-color: #0e0e0e;
+  background-image: url('/src/assets/migratorBg.png');
+  background-position: center;
+  background-size: cover;
+  background-attachment: fixed;
+
+  justify-content: center;
+  align-items: center;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -23,11 +30,12 @@
 
 .container {
   margin: 0;
-  padding-top: 10vh;
+  padding: 0;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  text-align: center;
+  align-items: center;
 }
 
 .logo {
@@ -97,9 +105,17 @@ button {
 
 /* Setup Pages */
 .setup-page {
+  width: 100%;
   max-width: 500px;
-  margin: 0 auto;
   padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  background-color: rgba(14, 14, 14, 0.8);
+  border-radius: 12px;
+  margin-top: 10vw;
 }
 
 .setup-page h1 {
