@@ -42,7 +42,7 @@ function App() {
         <div key="step-1" className="setup-page fadeIn">
           <h1 className="white-text">R1 Tenant Migration</h1>
           <p className="white-text subtitle">
-            Select your region of operation to get started.
+            Select your host region to get started.
           </p>
 
           <div className="country-selection">
