@@ -1,12 +1,13 @@
-.logo.vite:hover {
-  filter: drop-shadow(0 0 2em #747bff);
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap');
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
 }
 
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafb);
-}
 :root {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+  font-family: "Space Grotesk", sans-serif;
   font-size: 16px;
   line-height: 24px;
   font-weight: 400;
@@ -43,10 +44,6 @@
   padding: 1.5em;
   will-change: filter;
   transition: 0.75s;
-}
-
-.logo.tauri:hover {
-  filter: drop-shadow(0 0 2em #24c8db);
 }
 
 .row {
@@ -87,10 +84,10 @@ button {
 }
 
 button:hover {
-  border-color: #396cd8;
+  border-color: #4e5563;
 }
 button:active {
-  border-color: #396cd8;
+  border-color: #454c5a;
   background-color: #e8e8e8;
 }
 
@@ -148,14 +145,14 @@ button {
 }
 
 .country-button:hover {
-  border-color: #396cd8;
+  border-color: #4e5563;
   background-color: #f0f4ff;
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(57, 108, 216, 0.2);
 }
 
 .country-button:active {
-  border-color: #396cd8;
+  border-color: #97a1b6;
   background-color: #e0e8ff;
 }
 
@@ -172,7 +169,7 @@ button {
   display: block;
   margin-bottom: 0.5rem;
   font-weight: 600;
-  color: #0f0f0f;
+  color: #dfdfdf;
 }
 
 .form-group input {
@@ -254,10 +251,6 @@ button {
     background-color: #0f0f0f69;
   }
 
-  .subtitle {
-    color: #aaa;
-  }
-
   .country-button {
     background-color: #1e1e1e;
     border-color: #444;
@@ -294,4 +287,14 @@ button {
     background-color: #2a2a2a;
     border-color: #666;
   }
+}
+
+
+.version-p {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 10px;
+  color: white;
+  z-index: 1000;
 }

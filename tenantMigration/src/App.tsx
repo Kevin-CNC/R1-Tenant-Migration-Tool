@@ -1,5 +1,7 @@
 import { useState } from "react";
 import "./App.css";
+import "./textColors.css";
+import "./animations.css";
 
 type Country = "Asia" | "Europe" | "North America" | null;
 
@@ -34,11 +36,13 @@ function App() {
 
   return (
     <main className="container">
+      <p className="version-p">Version 1.0.0</p>
+
       {step === 1 ? (
-        <div className="setup-page">
-          <h1>Welcome to Tenant Migration</h1>
-          <p className="subtitle">
-            Select the region where your account is registered
+        <div key="step-1" className="setup-page fadeIn">
+          <h1 className="white-text">R1 Tenant Migration</h1>
+          <p className="white-text subtitle">
+            Select your region of operation to get started.
           </p>
 
           <div className="country-selection">
@@ -54,15 +58,16 @@ function App() {
           </div>
         </div>
       ) : (
-        <div className="setup-page">
-          <h1>API Key Configuration</h1>
-          <p className="subtitle">
+        <div key="step-2" className="setup-page fadeIn">
+          <h1 className="white-text">API Key Configuration</h1>
+          <p className="white-text">Enter your API Key and ensure the region you selected is correct.</p>
+          <p className="white-text subtitle">
             Selected region: <strong>{setupData.country}</strong>
           </p>
 
           <form onSubmit={handleApiKeySubmit} className="api-form">
             <div className="form-group">
-              <label htmlFor="api-key">Enter your API Key:</label>
+              <label htmlFor="api-key" >Enter your API Key:</label>
               <input
                 id="api-key"
                 type="password"
@@ -70,7 +75,7 @@ function App() {
                 onChange={(e) =>
                   setSetupData({ ...setupData, apiKey: e.currentTarget.value })
                 }
-                placeholder="Enter your API key..."
+                placeholder="Your API key:"
                 autoFocus
               />
             </div>
