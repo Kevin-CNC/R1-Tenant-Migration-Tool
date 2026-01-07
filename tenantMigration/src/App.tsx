@@ -62,7 +62,7 @@ function App() {
           <h1 className="white-text">API Key Configuration</h1>
           <p className="white-text">Enter your API Key and ensure the region you selected is correct.</p>
           <p className="white-text subtitle">
-            Selected region: <strong>{setupData.country}</strong>
+            Selected region: <strong className="ruckus-orange-text">{setupData.country}</strong>
           </p>
 
           <form onSubmit={handleApiKeySubmit} className="api-form">
