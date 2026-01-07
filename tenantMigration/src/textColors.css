@@ -1,0 +1,9 @@
+.white-text{
+    color: white;
+}
+
+.ruckus-orange-text{
+    background-image: linear-gradient(rgb(234, 181, 59), rgb(208, 118, 0));
+    color: transparent;
+    background-clip: text;
+}
