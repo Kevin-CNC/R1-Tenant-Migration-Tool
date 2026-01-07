@@ -206,13 +206,13 @@ button {
 }
 
 .btn-primary {
-  background-color: #396cd8;
+  background-color: #d89039;
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #2952a3;
-  box-shadow: 0 4px 12px rgba(57, 108, 216, 0.3);
+  background-color: #ca7815;
+  box-shadow: 0 4px 12px rgba(167, 95, 22, 0.3);
 }
 
 .btn-primary:disabled {
