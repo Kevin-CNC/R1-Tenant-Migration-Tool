@@ -11,6 +11,11 @@ import {
   validateMSPCredentials,
 } from "./services/api";
 
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faGear, faAnglesRight, faPersonBurst } from '@fortawesome/free-solid-svg-icons'
+
+
+
 function App() {
   const [step, setStep] = useState<AppStep>("region-select");
   const [selectedRegion, setSelectedRegion] = useState<Region>(null);
@@ -88,7 +93,8 @@ function App() {
       toast.success("MSP Account added successfully!");
       setMspForm({ tenantId: "", clientId: "", clientSecret: "" });
       setStep("main-menu");
-    } catch {
+    } catch (error) {
+      console.error("Error adding MSP account:", error);
       toast.error("Failed to add MSP Account. Please try again.");
     } finally {
       setIsLoading(false);
@@ -218,7 +224,7 @@ function App() {
               className="menu-button"
               onClick={() => setStep("add-msp")}
             >
-              <span className="menu-icon">➕</span>
+              <FontAwesomeIcon icon={faPersonBurst} style={{color: "#f3f0f9",}} />
               <span className="menu-text">Add an MSP Account</span>
               <span className="menu-description">
                 Configure a new MSP account for migration
@@ -230,7 +236,7 @@ function App() {
               onClick={() => setStep("tenant-migration")}
               disabled={regionAccounts.length < 2}
             >
-              <span className="menu-icon">🔄</span>
+              <FontAwesomeIcon icon={faAnglesRight} style={{color: "#ffffff",}} />
               <span className="menu-text">Perform Tenant Migration</span>
               <span className="menu-description">
                 {regionAccounts.length < 2
@@ -244,7 +250,7 @@ function App() {
                 className="menu-button secondary"
                 onClick={() => setStep("manage-accounts")}
               >
-                <span className="menu-icon">⚙️</span>
+                <FontAwesomeIcon icon={faGear} style={{color: "#f3f0f9",}} />
                 <span className="menu-text">Manage Accounts</span>
                 <span className="menu-description">
                   {regionAccounts.length} account(s) configured
@@ -482,16 +488,13 @@ function App() {
                       <span className="label">Client ID:</span>
                       <span className="value">{account.clientId}</span>
                     </p>
-                    <p className="account-date">
-                      Added: {account.createdAt.toLocaleDateString()}
-                    </p>
                   </div>
                   <button
                     className="btn-delete"
                     onClick={() => handleDeleteAccount(account.id)}
                     disabled={isLoading}
                   >
-                    🗑️ Delete
+                    Remove
                   </button>
                 </div>
               ))

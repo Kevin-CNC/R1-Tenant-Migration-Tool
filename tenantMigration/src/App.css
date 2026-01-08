@@ -112,7 +112,7 @@ button {
   text-align: center;
   background-color: rgba(14, 14, 14, 0.918);
   border-radius: 12px;
-  margin-top: 10vw;
+  margin-top: 3vw;
 }
 
 .setup-page h1 {
@@ -353,6 +353,7 @@ button {
   font-size: 1.1rem;
   font-weight: 600;
   color: #f6f6f6;
+  margin-top: .5vw;
 }
 
 .menu-description {
