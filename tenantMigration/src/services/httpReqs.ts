@@ -48,3 +48,24 @@ export function DELETE<T>(url:string): AxiosPromise<T> {
         throw err as apiError<T>;
     })
 }
+
+export function POSTFormEncoded<T>(url: string, data: Record<string, string>): AxiosPromise<T> {
+    const formData = new URLSearchParams();
+    Object.entries(data).forEach(([key, value]) => {
+        formData.append(key, value);
+    });
+
+    return axios({
+        url,
+        method: 'POST',
+        data: formData,
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        }
+    }).catch(err => {
+        throw {
+            response: err.response,
+            message: err.message
+        } as apiError<T>;
+    })
+}
