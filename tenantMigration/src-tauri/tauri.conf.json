@@ -5,7 +5,7 @@
   "identifier": "com.tenantmigration.app",
   "build": {
     "beforeDevCommand": "npm run dev",
-    "devUrl": "http://localhost:68993",
+    "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },

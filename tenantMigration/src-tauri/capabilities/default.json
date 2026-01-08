@@ -5,6 +5,24 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "opener:default"
+    "opener:default",
+    "http:default",
+    {
+      "identifier": "http:allow-fetch",
+      "allow": [
+        {
+          "url": "https://*.ruckus.cloud/*"
+        },
+        {
+          "url": "https://ruckus.cloud/*"
+        },
+        {
+          "url": "https://eu.ruckus.cloud/*"
+        },
+        {
+          "url": "https://asia.ruckus.cloud/*"
+        }
+      ]
+    }
   ]
 }
