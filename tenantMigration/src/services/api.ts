@@ -117,20 +117,31 @@ export const deleteMSPAccount = async (accountId: string): Promise<boolean> => {
 export const performTenantMigration = async (
   sourceMspId: string,
   targetMspId: string,
-  tenantIds: string[]
+  tenantIds: string[],
+  region: Region
 ): Promise<MigrationResult> => {
 
   // Simulate some failures randomly
   const migratedTenants: string[] = [];
   const failedTenants: string[] = [];
 
+  const sourceMSP = mspAccounts.find((a) => a.id === sourceMspId);
+
   for (const tenantId of tenantIds) {
-    // 90% success rate simulation
-    if (Math.random() > 0.1) {
-      migratedTenants.push(tenantId);
-    } else {
-      failedTenants.push(tenantId);
-    }
+    const resp = await fetch(`${getRegionUrl(region)}/tenants/${tenantId}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${sourceMSP?.JWToken}`,
+          Accept: "application/json",
+        },
+      });
+
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status}`);
+      }
+
+    const data = await resp.json();
+    console.log(data);
   }
 
   return {
