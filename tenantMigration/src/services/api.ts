@@ -76,6 +76,8 @@ export const addMSPAccount = async (
 
   const JWToken = await fetchToken(tenantId, clientId, clientSecret, region); 
 
+  console.log(`Fetched JWT for ${tenantId}:`, JWToken);
+
   const newAccount: MSPAccount = {
     id: `msp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     name: `MSP Account (${tenantId.substring(0, 8)}...)`,

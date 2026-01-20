@@ -67,6 +67,12 @@ function App() {
     setIsLoading(true);
 
     try {
+      if (mspAccounts.find(acc => acc.tenantId === mspForm.tenantId && acc.region === selectedRegion)) {
+        toast.error("An MSP account with this Tenant ID already exists in the selected region.");
+        setIsLoading(false);
+        return;
+      }
+
       // First validate credentials
       const validation = await validateMSPCredentials(
         mspForm.tenantId,
@@ -106,7 +112,8 @@ function App() {
     try {
       const success = await deleteMSPAccount(accountId);
       if (success) {
-        setMspAccounts(mspAccounts.filter((acc) => acc.id !== accountId));
+        // Force a new array reference to trigger React re-render
+        setMspAccounts(prev => prev.filter((acc) => acc.id !== accountId));
         toast.success("Account deleted successfully");
         
         // Clear selection if deleted account was selected
