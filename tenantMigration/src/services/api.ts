@@ -1,16 +1,48 @@
 import { MSPAccount, MigrationResult, Region } from "../types";
 import { GET, POST, PUT, DELETE, POSTFormEncoded } from "./httpReqs";
 import { fetch } from "@tauri-apps/plugin-http";
+import { writeTextFile, readTextFile, BaseDirectory } from "@tauri-apps/plugin-fs";
 
 
-// In-memory storage (will be replaced by actual backend storage)
+const filePath = "userAccounts.json";
+
+
+// In-memory storage (Populated from actual file storage)
 let mspAccounts: MSPAccount[] = [];
+let isInitialized = false;
 
 interface TokenResponse {
   access_token: string;
   token_type: string;
   expires_in: number;
   scope?: string;
+}
+
+
+/* Initialize MSP accounts from file storage */
+const initializeMSPs = async(): Promise<void> => {
+  if (isInitialized) return;
+
+  try{
+    const savedData = await readTextFile(filePath, { baseDir: BaseDirectory.AppLocalData });
+    mspAccounts = JSON.parse(savedData);
+  }catch(e){
+    console.log("No existing MSP accounts found, starting fresh.");
+    mspAccounts = [];
+  }
+
+  isInitialized = true;
+}
+
+/* Save MSP accounts to file */
+const saveMSPsToFile = async (): Promise<void> => {
+  try{
+    await writeTextFile(filePath, JSON.stringify(mspAccounts, null, 2), { baseDir: BaseDirectory.AppLocalData });
+    console.log("MSP accounts saved successfully");
+  } catch (e){
+    console.error("File save error:", e);
+    throw new Error(`Failed to save MSP accounts to file: ${e instanceof Error ? e.message : String(e)}`);
+  }
 }
 
 
@@ -73,6 +105,7 @@ export const addMSPAccount = async (
   clientSecret: string,
   region: Region
 ): Promise<MSPAccount> => {
+  await initializeMSPs(); // ADD THIS LINE
 
   const JWToken = await fetchToken(tenantId, clientId, clientSecret, region); 
 
@@ -89,6 +122,7 @@ export const addMSPAccount = async (
   };
 
   mspAccounts.push(newAccount);
+  await saveMSPsToFile();
   return newAccount;
 };
 
@@ -96,6 +130,7 @@ export const addMSPAccount = async (
  * Get all MSP accounts for a region
  */
 export const getMSPAccounts = async (region: Region): Promise<MSPAccount[]> => {
+  await initializeMSPs();
   return mspAccounts.filter((account) => account.region === region);
 };
 
@@ -103,9 +138,11 @@ export const getMSPAccounts = async (region: Region): Promise<MSPAccount[]> => {
  * Delete an MSP account
  */
 export const deleteMSPAccount = async (accountId: string): Promise<boolean> => {
+  await initializeMSPs(); // ADD THIS LINE TOO
   const index = mspAccounts.findIndex((acc) => acc.id === accountId);
   if (index > -1) {
     mspAccounts.splice(index, 1);
+    await saveMSPsToFile();
     return true;
   }
   return false;
@@ -120,28 +157,51 @@ export const performTenantMigration = async (
   tenantIds: string[],
   region: Region
 ): Promise<MigrationResult> => {
+  await initializeMSPs();
 
   // Simulate some failures randomly
   const migratedTenants: string[] = [];
   const failedTenants: string[] = [];
 
   const sourceMSP = mspAccounts.find((a) => a.id === sourceMspId);
+  
+  if (!sourceMSP) {
+    throw new Error(`Source MSP account with ID ${sourceMspId} not found`);
+  }
+  
+  console.log(`Starting migration with source MSP: ${sourceMSP.name}`);
 
   for (const tenantId of tenantIds) {
-    const resp = await fetch(`${getRegionUrl(region)}/tenants/${tenantId}`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${sourceMSP?.JWToken}`,
-          Accept: "application/json",
-        },
+    try {
+      console.log(`Migrating tenant ${tenantId}...`);
+      const sessionToken = await fetchToken(sourceMSP.tenantId, sourceMSP.clientId, sourceMSP.clientSecret, sourceMSP.region);
+      console.log(sessionToken);
+
+      const resp = await fetch(`${getRegionUrl(region)}/tenants/${tenantId}`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${sessionToken}`,
+            Accept: "application/json",
+          },
       });
 
       if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}`);
+        const errorText = await resp.text();
+        console.error(`Failed to migrate tenant ${tenantId}: HTTP ${resp.status}`, errorText);
+        failedTenants.push(tenantId);
+        continue;
       }
 
-    const data = await resp.json();
-    console.log(data);
+      const data = await resp.json();
+      console.log(`✓ Successfully fetched data for tenant ${tenantId}:`, data);
+      
+      // Add to migrated list
+      migratedTenants.push(tenantId);
+      
+    } catch (error) {
+      console.error(`Error migrating tenant ${tenantId}:`, error);
+      failedTenants.push(tenantId);
+    }
   }
 
   return {
