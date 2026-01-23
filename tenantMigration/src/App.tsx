@@ -165,8 +165,7 @@ function App() {
       const result = await performTenantMigration(
         sourceMspId,
         targetMspId,
-        tenantsToMigrate,
-        selectedRegion
+        tenantsToMigrate
       );
 
       if (result.success) {

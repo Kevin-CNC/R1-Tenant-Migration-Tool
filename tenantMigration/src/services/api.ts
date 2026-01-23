@@ -2,6 +2,7 @@ import { MSPAccount, MigrationResult, Region } from "../types";
 import { GET, POST, PUT, DELETE, POSTFormEncoded } from "./httpReqs";
 import { fetch } from "@tauri-apps/plugin-http";
 import { writeTextFile, readTextFile, BaseDirectory } from "@tauri-apps/plugin-fs";
+import { invoke } from '@tauri-apps/api/core';
 
 
 const filePath = "userAccounts.json";
@@ -55,6 +56,19 @@ function getRegionUrl(region: Region): string {
       return "https://asia.ruckus.cloud";
     case "North America":
       return "https://ruckus.cloud";
+    default:
+      throw new Error("Invalid region selected");
+  }
+}
+
+function getAPIUrlByRegion(region: Region): string {
+  switch (region) {
+    case "Europe":
+      return "https://api.eu.ruckus.cloud";
+    case "Asia":
+      return "https://api.asia.ruckus.cloud";
+    case "North America":
+      return "https://api.ruckus.cloud";
     default:
       throw new Error("Invalid region selected");
   }
@@ -154,8 +168,7 @@ export const deleteMSPAccount = async (accountId: string): Promise<boolean> => {
 export const performTenantMigration = async (
   sourceMspId: string,
   targetMspId: string,
-  tenantIds: string[],
-  region: Region
+  tenantIds: string[]
 ): Promise<MigrationResult> => {
   await initializeMSPs();
 
@@ -175,26 +188,34 @@ export const performTenantMigration = async (
     try {
       console.log(`Migrating tenant ${tenantId}...`);
       const sessionToken = await fetchToken(sourceMSP.tenantId, sourceMSP.clientId, sourceMSP.clientSecret, sourceMSP.region);
-      console.log(sessionToken);
+      //console.log(sessionToken);
+      //console.log(`${getAPIUrlByRegion(sourceMSP.region)}/tenants/${tenantId}`)
 
-      const resp = await fetch(`${getRegionUrl(region)}/tenants/${tenantId}`, {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${sessionToken}`,
-            Accept: "application/json",
-          },
+      const myHeaders = new Headers();
+      myHeaders.append("Authorization", `Bearer ${sessionToken.trim()}`);
+      myHeaders.append('Accept', 'application/json');
+      //console.log(Object.fromEntries(myHeaders.entries()));
+
+      const resp = await invoke<string>('get_tenant', {
+        apiUrl: getAPIUrlByRegion(sourceMSP.region),
+        tenantId: tenantId,
+        token: sessionToken.trim()
       });
 
-      if (!resp.ok) {
-        const errorText = await resp.text();
-        console.error(`Failed to migrate tenant ${tenantId}: HTTP ${resp.status}`, errorText);
-        failedTenants.push(tenantId);
-        continue;
-      }
-
-      const data = await resp.json();
+      const data = JSON.parse(resp);
       console.log(`✓ Successfully fetched data for tenant ${tenantId}:`, data);
       
+
+      const putResp = await invoke<string>('put_tenant', {
+        apiUrl: getAPIUrlByRegion(sourceMSP.region),
+        tenantId: tenantId,
+        token: sessionToken.trim(),
+        tenant_data: data
+      });
+
+      const putData = JSON.parse(putResp);
+      console.log(putData);
+
       // Add to migrated list
       migratedTenants.push(tenantId);
       
