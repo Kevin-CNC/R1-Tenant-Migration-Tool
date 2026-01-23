@@ -5,6 +5,51 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "opener:default"
+    "opener:default",
+    "http:default",
+    "fs:allow-applocaldata-read-recursive",
+    "fs:allow-applocaldata-write-recursive",
+    {
+      "identifier": "fs:allow-read-text-file",
+      "allow": [
+        {
+          "path": "$APPLOCALDATA/**"
+        }
+      ]
+    },
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [
+        {
+          "path": "$APPLOCALDATA/**"
+        }
+      ]
+    },
+    {
+      "identifier": "http:allow-fetch",
+      "allow": [
+        {
+          "url": "https://*.ruckus.cloud/*"
+        },
+        {
+          "url": "https://ruckus.cloud/*"
+        },
+        {
+          "url": "https://eu.ruckus.cloud/*"
+        },
+        {
+          "url": "https://asia.ruckus.cloud/*"
+        },
+        {
+          "url": "https://api.ruckus.cloud/*"
+        },
+        {
+          "url": "https://api.eu.ruckus.cloud/*"
+        },
+        {
+          "url": "https://api.asia.ruckus.cloud/*"
+        }
+      ]
+    }
   ]
 }

@@ -1,0 +1,122 @@
+.toast-container {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 400px;
+  width: 90%;
+}
+
+.toast {
+  background: rgba(30, 30, 30, 0.95);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  animation: toastSlideIn 0.3s ease-out;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.toast-content {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  gap: 12px;
+}
+
+.toast-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.toast-success .toast-icon {
+  background: linear-gradient(135deg, #4ade80, #22c55e);
+  color: white;
+}
+
+.toast-error .toast-icon {
+  background: linear-gradient(135deg, #f87171, #ef4444);
+  color: white;
+}
+
+.toast-warning .toast-icon {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  color: #1e1e1e;
+}
+
+.toast-info .toast-icon {
+  background: linear-gradient(135deg, #60a5fa, #3b82f6);
+  color: white;
+}
+
+.toast-message {
+  flex: 1;
+  color: #f6f6f6;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.toast-close {
+  background: transparent;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  padding: 4px;
+  font-size: 12px;
+  transition: color 0.2s ease;
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.toast-close:hover {
+  color: #f6f6f6;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.toast-progress-bar {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.toast-progress-fill {
+  height: 100%;
+  transition: width 0.05s linear;
+}
+
+.toast-success .toast-progress-fill {
+  background: linear-gradient(90deg, #4ade80, #22c55e);
+}
+
+.toast-error .toast-progress-fill {
+  background: linear-gradient(90deg, #f87171, #ef4444);
+}
+
+.toast-warning .toast-progress-fill {
+  background: linear-gradient(90deg, #fbbf24, #f59e0b);
+}
+
+.toast-info .toast-progress-fill {
+  background: linear-gradient(90deg, #60a5fa, #3b82f6);
+}
