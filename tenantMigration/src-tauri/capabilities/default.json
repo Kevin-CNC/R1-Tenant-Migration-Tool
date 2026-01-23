@@ -39,6 +39,15 @@
         },
         {
           "url": "https://asia.ruckus.cloud/*"
+        },
+        {
+          "url": "https://api.ruckus.cloud/*"
+        },
+        {
+          "url": "https://api.eu.ruckus.cloud/*"
+        },
+        {
+          "url": "https://api.asia.ruckus.cloud/*"
         }
       ]
     }
