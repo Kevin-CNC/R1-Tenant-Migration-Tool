@@ -3,12 +3,13 @@ import "./App.css";
 import "./textColors.css";
 import "./animations.css";
 import { ToastContainer, useToast } from "./components/Toast";
-import { Region, MSPAccount, AppStep } from "./types";
+import { Region, MSPAccount, AppStep, FieldConfig } from "./types";
 import {
   addMSPAccount,
   deleteMSPAccount,
   performTenantMigration,
   validateMSPCredentials,
+  InputRequester,
 } from "./services/api";
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -35,6 +36,65 @@ function App() {
   const [targetMspId, setTargetMspId] = useState<string>("");
   const [tenantInput, setTenantInput] = useState("");
   const [tenantsToMigrate, setTenantsToMigrate] = useState<string[]>([]);
+
+  // Input modal state
+  const [inputModalState, setInputModalState] = useState<{
+    visible: boolean;
+    fieldName: string;
+    label: string;
+    currentValue: string | null;
+    config: FieldConfig | null;
+    resolver: ((value: string | null) => void) | null;
+  }>({
+    visible: false,
+    fieldName: '',
+    label: '',
+    currentValue: null,
+    config: null,
+    resolver: null,
+  });
+
+  // Input requester function for collecting missing fields
+  const inputRequester: InputRequester = (fieldName, label, currentValue, config) => {
+    return new Promise((resolve) => {
+      setInputModalState({
+        visible: true,
+        fieldName,
+        label,
+        currentValue,
+        config,
+        resolver: resolve,
+      });
+    });
+  };
+
+  const handleModalSubmit = (value: string) => {
+    if (inputModalState.resolver) {
+      inputModalState.resolver(value);
+    }
+    setInputModalState({
+      visible: false,
+      fieldName: '',
+      label: '',
+      currentValue: null,
+      config: null,
+      resolver: null,
+    });
+  };
+
+  const handleModalSkip = () => {
+    if (inputModalState.resolver) {
+      inputModalState.resolver(null);
+    }
+    setInputModalState({
+      visible: false,
+      fieldName: '',
+      label: '',
+      currentValue: null,
+      config: null,
+      resolver: null,
+    });
+  };
 
   const handleRegionSelect = (region: Region) => {
     setSelectedRegion(region);
@@ -165,7 +225,8 @@ function App() {
       const result = await performTenantMigration(
         sourceMspId,
         targetMspId,
-        tenantsToMigrate
+        tenantsToMigrate,
+        inputRequester
       );
 
       if (result.success) {
