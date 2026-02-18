@@ -1,8 +1,27 @@
-import { MSPAccount, MigrationResult, Region } from "../types";
+import { MSPAccount, MigrationResult, Region, TenantCreationData, FieldConfig } from "../types";
 import { GET, POST, PUT, DELETE, POSTFormEncoded } from "./httpReqs";
 import { fetch } from "@tauri-apps/plugin-http";
 import { writeTextFile, readTextFile, BaseDirectory } from "@tauri-apps/plugin-fs";
 import { invoke } from '@tauri-apps/api/core';
+
+// Venues query interfaces
+interface VenuesQueryParams {
+  fields: string[];
+  searchTargetFields: string[];
+  filters: Record<string, any>;
+  sortField: string;
+  sortOrder: 'ASC' | 'DESC';
+  page: number;
+  pageSize: number;
+  defaultPageSize: number;
+  total: number;
+}
+
+interface VenuesQueryResponse {
+  list: any[];
+  totalCount: number;
+  hasMore: boolean;
+}
 
 
 const filePath = "userAccounts.json";
@@ -18,6 +37,79 @@ interface TokenResponse {
   expires_in: number;
   scope?: string;
 }
+
+// Field configurations for tenant creation (based on official Postman collection)
+const TENANT_FIELD_CONFIGS: FieldConfig[] = [
+  // Required fields per Postman collection
+  { fieldName: 'name', label: 'Tenant Name', maxLength: 255, minLength: 2, required: true, type: 'string' },
+  { fieldName: 'tenant_type', label: 'Tenant Type', maxLength: 25, minLength: 0, required: true, type: 'string' },
+  { fieldName: 'service_effective_date', label: 'Service Start Date', maxLength: 255, minLength: 0, required: true, type: 'string' },
+  { fieldName: 'service_expiration_date', label: 'Service End Date', maxLength: 255, minLength: 0, required: true, type: 'string' },
+  { fieldName: 'admin_email', label: 'Admin Email', maxLength: 255, minLength: 0, required: true, type: 'string' },
+  { fieldName: 'admin_firstname', label: 'Admin First Name', maxLength: 64, minLength: 0, required: true, type: 'string' },
+  { fieldName: 'admin_lastname', label: 'Admin Last Name', maxLength: 64, minLength: 0, required: true, type: 'string' },
+  { fieldName: 'admin_role', label: 'Admin Role', maxLength: 255, minLength: 0, required: true, type: 'string' },
+  // Optional address fields (must be strings)
+  { fieldName: 'street_address', label: 'Street Address', maxLength: 255, minLength: 0, required: false, type: 'string' },
+  { fieldName: 'city', label: 'City', maxLength: 255, minLength: 0, required: false, type: 'string' },
+  { fieldName: 'state', label: 'State', maxLength: 255, minLength: 0, required: false, type: 'string' },
+  { fieldName: 'country', label: 'Country', maxLength: 255, minLength: 0, required: false, type: 'string' },
+  { fieldName: 'postal_code', label: 'Postal Code', maxLength: 255, minLength: 0, required: false, type: 'string' },
+  { fieldName: 'phone_number', label: 'Phone Number', maxLength: 255, minLength: 0, required: false, type: 'string' },
+  { fieldName: 'fax_number', label: 'Fax Number', maxLength: 255, minLength: 0, required: false, type: 'string' },
+];
+
+/**
+ * Callback type for requesting user input
+ */
+export type InputRequester = (
+  fieldName: string,
+  label: string,
+  currentValue: string | null,
+  config: FieldConfig
+) => Promise<string | null>;
+
+/**
+ * Validate and collect missing required fields from user
+ */
+export const collectMissingFields = async (
+  data: Partial<TenantCreationData>,
+  inputRequester: InputRequester
+): Promise<TenantCreationData> => {
+  const result = { ...data } as any;
+
+  for (const config of TENANT_FIELD_CONFIGS) {
+    const fieldName = config.fieldName;
+    const currentValue = result[fieldName];
+
+    // Skip non-string fields (objects/arrays will be handled separately)
+    if (config.type !== 'string') {
+      if (!currentValue) {
+        if (config.type === 'object') {
+          result[fieldName] = {};
+        } else if (config.type === 'array') {
+          result[fieldName] = [];
+        }
+      }
+      continue;
+    }
+
+    // Check if field is null, undefined, or empty string
+    if (currentValue === null || currentValue === undefined || currentValue === '') {
+      const userInput = await inputRequester(
+        fieldName,
+        config.label,
+        currentValue,
+        config
+      );
+
+      // If user provided input, use it; otherwise keep as empty string
+      result[fieldName] = userInput !== null ? userInput : '';
+    }
+  }
+
+  return result as TenantCreationData;
+};
 
 
 /* Initialize MSP accounts from file storage */
@@ -168,7 +260,8 @@ export const deleteMSPAccount = async (accountId: string): Promise<boolean> => {
 export const performTenantMigration = async (
   sourceMspId: string,
   targetMspId: string,
-  tenantIds: string[]
+  tenantIds: string[],
+  inputRequester: InputRequester
 ): Promise<MigrationResult> => {
   await initializeMSPs();
 
@@ -177,9 +270,10 @@ export const performTenantMigration = async (
   const failedTenants: string[] = [];
 
   const sourceMSP = mspAccounts.find((a) => a.id === sourceMspId);
-  
-  if (!sourceMSP) {
-    throw new Error(`Source MSP account with ID ${sourceMspId} not found`);
+  const targetMSP = mspAccounts.find((a) => a.id === targetMspId);
+
+  if (!sourceMSP || !targetMSP) {
+    throw new Error(`One of the MSP accounts (ID ${sourceMspId}) not found`);
   }
   
   console.log(`Starting migration with source MSP: ${sourceMSP.name}`);
@@ -188,13 +282,7 @@ export const performTenantMigration = async (
     try {
       console.log(`Migrating tenant ${tenantId}...`);
       const sessionToken = await fetchToken(sourceMSP.tenantId, sourceMSP.clientId, sourceMSP.clientSecret, sourceMSP.region);
-      //console.log(sessionToken);
-      //console.log(`${getAPIUrlByRegion(sourceMSP.region)}/tenants/${tenantId}`)
-
-      const myHeaders = new Headers();
-      myHeaders.append("Authorization", `Bearer ${sessionToken.trim()}`);
-      myHeaders.append('Accept', 'application/json');
-      //console.log(Object.fromEntries(myHeaders.entries()));
+      const targetSessionToken = await fetchToken(targetMSP.tenantId, targetMSP.clientId, targetMSP.clientSecret, targetMSP.region);
 
       const resp = await invoke<string>('get_tenant', {
         apiUrl: getAPIUrlByRegion(sourceMSP.region),
@@ -203,21 +291,60 @@ export const performTenantMigration = async (
       });
 
       const data = JSON.parse(resp);
+      const sourceTenantId = data.tenant_id;
+
       console.log(`✓ Successfully fetched data for tenant ${tenantId}:`, data);
       
 
+      const venues = await getVenues(sourceTenantId, 
+        sessionToken, 
+        sourceMSP.region);
+
+      console.log(`✓ Successfully fetched venues for tenant ${tenantId}:`, venues);
+      console.log(venues);
+
+      /* const tenantPayload: any = {
+        // REQUIRED fields
+        name: data.name || '',
+
+        tenant_type: 'MSP_EC',
+        service_effective_date: formatDate(data.service_effective_date) || new Date().toISOString().replace('T', ' ').split('.')[0] + 'Z',
+        service_expiration_date: formatDate(data.service_expiration_date) || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().replace('T', ' ').split('.')[0] + 'Z',
+        admin_email: data.admin_email || '',
+        admin_firstname: data.admin_firstname || '',
+        admin_lastname: data.admin_lastname || '',
+        admin_role: 'PRIME_ADMIN',
+        
+
+        licenses: data.licenses || { trialAction: 'UNASSIGNED', assignments: [] },
+        admin_delegations: data.admin_delegations || [],
+        delegations: data.delegations || [],
+      };
+
+      // Optional address fields (ensure they are strings)
+      if (data.street_address) tenantPayload.street_address = String(data.street_address);
+      if (data.city) tenantPayload.city = String(data.city);
+      if (data.state) tenantPayload.state = String(data.state);
+      if (data.country) tenantPayload.country = String(data.country);
+      if (data.postal_code) tenantPayload.postal_code = String(data.postal_code);
+      if (data.phone_number) tenantPayload.phone_number = String(data.phone_number);
+      if (data.fax_number) tenantPayload.fax_number = String(data.fax_number);
+
+      console.log('Submitting tenant creation request to /mspCustomers...');
+      console.log('Payload:', JSON.stringify(tenantPayload, null, 2));
+      
       const putResp = await invoke<string>('put_tenant', {
-        apiUrl: getAPIUrlByRegion(sourceMSP.region),
-        tenantId: tenantId,
-        token: sessionToken.trim(),
-        tenant_data: data
+        apiUrl: getAPIUrlByRegion(targetMSP.region),
+        tenantId: targetMSP.tenantId,
+        token: targetSessionToken.trim(),
+        tenantData: tenantPayload
       });
 
       const putData = JSON.parse(putResp);
-      console.log(putData);
+      console.log('✓ Tenant created successfully:', putData);
 
       // Add to migrated list
-      migratedTenants.push(tenantId);
+      migratedTenants.push(tenantId); */
       
     } catch (error) {
       console.error(`Error migrating tenant ${tenantId}:`, error);
@@ -279,4 +406,70 @@ export const getTenantsList = async (_mspId: string): Promise<string[]> => {
     "tenant-004",
     "tenant-005",
   ];
+};
+
+/**
+ * Query venues for a tenant
+ */
+export const getVenues = async (
+  tenantId: string,
+  token: string,
+  region: Region,
+  customParams?: Partial<VenuesQueryParams>
+): Promise<VenuesQueryResponse> => {
+  // Default query parameters
+  const defaultQueryParams: VenuesQueryParams = {
+    fields: [
+      "check-all", "name", "description", "city", "country",
+      "networks", "aggregatedApStatus", "switches", "switchClients",
+      "clients", "apWiredClients", "edges", "iotControllers", "cog",
+      "latitude", "longitude", "status", "id", "isEnforced",
+      "addressLine", "tagList"
+    ],
+    searchTargetFields: ["name", "addressLine", "description", "tagList"],
+    filters: {},
+    sortField: "name",
+    sortOrder: "ASC",
+    page: 1,
+    pageSize: 10,
+    defaultPageSize: 10,
+    total: 0
+  };
+
+  // Merge custom parameters with defaults
+  const queryParams = { ...defaultQueryParams, ...customParams };
+
+  try {
+    console.log(`Querying venues for tenant ${tenantId} in region ${region}...`);
+    console.log('Query parameters:', JSON.stringify(queryParams, null, 2));
+
+    const response = await invoke<string>('query_venues', {
+      apiUrl: getAPIUrlByRegion(region),
+      tenantId: tenantId,
+      token: token.trim(),
+      queryData: queryParams
+    });
+
+    const data: VenuesQueryResponse = JSON.parse(response);
+    console.log('✓ Venues query successful:');
+    console.log('Response:', JSON.stringify(data, null, 2));
+    
+    return data;
+  } catch (error) {
+    console.error('Error querying venues:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    // Parse error message for HTTP status codes
+    if (errorMessage.includes('HTTP 401')) {
+      throw new Error('Unauthorized: Invalid or expired token');
+    } else if (errorMessage.includes('HTTP 403')) {
+      throw new Error('Forbidden: Insufficient permissions to access venues');
+    } else if (errorMessage.includes('HTTP 404')) {
+      throw new Error('Not Found: Venues endpoint not available');
+    } else if (errorMessage.includes('HTTP 500')) {
+      throw new Error('Internal Server Error: API server encountered an error');
+    } else {
+      throw new Error(`Failed to query venues: ${errorMessage}`);
+    }
+  }
 };
