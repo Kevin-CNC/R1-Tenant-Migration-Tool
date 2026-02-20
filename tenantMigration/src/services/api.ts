@@ -24,6 +24,21 @@ interface VenuesQueryResponse {
 }
 
 
+// Wifi Networks interfaces
+interface WifiNetworksQueryParams {
+  searchString: string;
+  searchTargetFields: string[];
+  fields: string[];
+  page: number;
+  pageSize: number;
+  defaultPageSize: number;
+  total: number;
+  sortField: string;
+  sortOrder: 'ASC' | 'DESC';
+  filters: Record<string, any>;
+  groupFilters: any[];
+}
+
 const filePath = "userAccounts.json";
 
 
@@ -303,48 +318,13 @@ export const performTenantMigration = async (
       console.log(`✓ Successfully fetched venues for tenant ${tenantId}:`, venues);
       console.log(venues);
 
-      /* const tenantPayload: any = {
-        // REQUIRED fields
-        name: data.name || '',
 
-        tenant_type: 'MSP_EC',
-        service_effective_date: formatDate(data.service_effective_date) || new Date().toISOString().replace('T', ' ').split('.')[0] + 'Z',
-        service_expiration_date: formatDate(data.service_expiration_date) || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().replace('T', ' ').split('.')[0] + 'Z',
-        admin_email: data.admin_email || '',
-        admin_firstname: data.admin_firstname || '',
-        admin_lastname: data.admin_lastname || '',
-        admin_role: 'PRIME_ADMIN',
-        
+      const wifiNetworks = await querywNetworks(sourceTenantId, 
+        sessionToken, 
+        sourceMSP.region);
 
-        licenses: data.licenses || { trialAction: 'UNASSIGNED', assignments: [] },
-        admin_delegations: data.admin_delegations || [],
-        delegations: data.delegations || [],
-      };
-
-      // Optional address fields (ensure they are strings)
-      if (data.street_address) tenantPayload.street_address = String(data.street_address);
-      if (data.city) tenantPayload.city = String(data.city);
-      if (data.state) tenantPayload.state = String(data.state);
-      if (data.country) tenantPayload.country = String(data.country);
-      if (data.postal_code) tenantPayload.postal_code = String(data.postal_code);
-      if (data.phone_number) tenantPayload.phone_number = String(data.phone_number);
-      if (data.fax_number) tenantPayload.fax_number = String(data.fax_number);
-
-      console.log('Submitting tenant creation request to /mspCustomers...');
-      console.log('Payload:', JSON.stringify(tenantPayload, null, 2));
-      
-      const putResp = await invoke<string>('put_tenant', {
-        apiUrl: getAPIUrlByRegion(targetMSP.region),
-        tenantId: targetMSP.tenantId,
-        token: targetSessionToken.trim(),
-        tenantData: tenantPayload
-      });
-
-      const putData = JSON.parse(putResp);
-      console.log('✓ Tenant created successfully:', putData);
-
-      // Add to migrated list
-      migratedTenants.push(tenantId); */
+      console.log(`✓ Successfully fetched wifi networks for tenant ${tenantId}:`, wifiNetworks);
+      console.log(wifiNetworks);
       
     } catch (error) {
       console.error(`Error migrating tenant ${tenantId}:`, error);
@@ -408,6 +388,72 @@ export const getTenantsList = async (_mspId: string): Promise<string[]> => {
   ];
 };
 
+// Query Wifi Networks for a tenant
+export const querywNetworks = async (
+  tenantId: string,
+  token: string,
+  region: Region,
+  customParams?: Partial<WifiNetworksQueryParams>
+): Promise<WifiNetworksQueryParams> => {
+  // Default query parameters - CORRECTED
+  const defaultQueryParams: WifiNetworksQueryParams = {
+    searchString: "",
+    searchTargetFields: ["name"],
+    fields: [
+      "name", "description", "nwSubType", "venueApGroups",
+      "apSerialNumbers", "apCount", "clientCount", "vlan", "cog",
+      "ssid", "vlanPool", "captiveType", "id", "securityProtocol",
+      "dsaeOnboardNetwork", "isOweMaster", "owePairNetworkId",
+      "tunnelWlanEnable", "isEnforced"
+    ],
+    page: 1,
+    pageSize: 10,
+    defaultPageSize: 10,
+    total: 0,
+    sortField: "name",
+    sortOrder: "ASC",
+    filters: {},
+    groupFilters: []
+  };
+
+  // Merge custom parameters with defaults
+  const queryParams = { ...defaultQueryParams, ...customParams };
+
+  try {
+    console.log(`Querying wifi networks for tenant ${tenantId} in region ${region}...`);
+    console.log('Query parameters:', JSON.stringify(queryParams, null, 2));
+
+    const response = await invoke<string>('querywNetworks', {
+      apiUrl: getAPIUrlByRegion(region),
+      tenantId: tenantId,
+      token: token.trim(),
+      queryData: queryParams
+    });
+
+    const data: WifiNetworksQueryParams = JSON.parse(response);
+    console.log('✓ Wifi networks query successful:');
+    console.log('Response:', JSON.stringify(data, null, 2));
+    
+    return data;
+  } catch (error) {
+    console.error('Error querying wifi networks:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    if (errorMessage.includes('HTTP 401')) {
+      throw new Error('Unauthorized: Invalid or expired token');
+    } else if (errorMessage.includes('HTTP 403')) {
+      throw new Error('Forbidden: Insufficient permissions to access wifi networks');
+    } else if (errorMessage.includes('HTTP 404')) {
+      throw new Error('Not Found: Wifi networks endpoint not available');
+    } else if (errorMessage.includes('HTTP 500')) {
+      throw new Error('Internal Server Error: API server encountered an error');
+    } else {
+      throw new Error(`Failed to query wifi networks: ${errorMessage}`);
+    }
+  }
+};
+
+
 /**
  * Query venues for a tenant
  */
@@ -435,6 +481,7 @@ export const getVenues = async (
     defaultPageSize: 10,
     total: 0
   };
+
 
   // Merge custom parameters with defaults
   const queryParams = { ...defaultQueryParams, ...customParams };

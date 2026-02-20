@@ -90,13 +90,44 @@ async fn query_venues(api_url: String, tenant_id: String, token: String, query_d
     }
 }
 
+
+#[tauri::command]
+async fn querywNetworks(api_url: String, tenant_id: String, token: String, query_data: Value) -> Result<String, String> {
+    let url = format!("{}/wifiNetworks/query", api_url);
+    
+    println!("Wifi Networks Query URL: {}", url);
+    println!("Query Data: {}", serde_json::to_string_pretty(&query_data).unwrap());
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post(&url)
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Content-Type", "application/json")
+        .header("x-rks-tenantid", tenant_id)
+        .json(&query_data)
+        .send()
+        .await
+        .map_err(|e| format!("Request failed: {}", e))?;
+    
+    let status = response.status();
+    let body = response.text().await.map_err(|e| format!("Failed to read response: {}", e))?;
+    
+    if status.is_success() {
+        Ok(body)
+    } else {
+        Err(format!("HTTP {}: {}", status, body))
+    }
+}
+
+
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![greet, get_tenant, put_tenant, query_venues])
+        .invoke_handler(tauri::generate_handler![greet, get_tenant, put_tenant, query_venues, querywNetworks])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
