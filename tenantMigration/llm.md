@@ -184,7 +184,114 @@ const venues = await getVenues(
 
 ---
 
-### 3. Create/Update Tenant
+### 3. Query WiFi Networks
+**Endpoint**: `{apiUrl}/wifiNetworks/query`  
+**Method**: POST
+
+**Headers**:
+```
+Content-Type: application/json
+Authorization: Bearer {sessionToken}
+x-rks-tenantid: {mspTenantId}
+```
+
+**Request Body Payload**:
+```typescript
+interface WifiNetworksQueryParams {
+  searchString: string;              // Search string (empty by default)
+  searchTargetFields: string[];      // Fields to search within
+  fields: string[];                  // Fields to retrieve
+  page: number;                      // Page number
+  pageSize: number;                  // Results per page
+  defaultPageSize: number;           // Default page size
+  total: number;                     // Total count
+  sortField: string;                 // Field to sort by
+  sortOrder: 'ASC' | 'DESC';        // Sort direction
+  filters: Record<string, any>;      // Filter criteria
+  groupFilters: any[];               // Group filters
+}
+```
+
+**Default Payload**:
+```json
+{
+  "searchString": "",
+  "searchTargetFields": ["name"],
+  "fields": [
+    "name", "description", "nwSubType", "venueApGroups",
+    "apSerialNumbers", "apCount", "clientCount", "vlan", "cog",
+    "ssid", "vlanPool", "captiveType", "id", "securityProtocol",
+    "dsaeOnboardNetwork", "isOweMaster", "owePairNetworkId",
+    "tunnelWlanEnable", "isEnforced"
+  ],
+  "page": 1,
+  "pageSize": 10,
+  "defaultPageSize": 10,
+  "total": 0,
+  "sortField": "name",
+  "sortOrder": "ASC",
+  "filters": {},
+  "groupFilters": []
+}
+```
+
+**TypeScript Invocation**:
+```typescript
+const wifiNetworks = await querywNetworks(
+  mspTenantId,
+  sessionToken,
+  region
+);
+```
+
+---
+
+### 4. Query Access Points (APs)
+**Endpoint**: `{apiUrl}/venues/aps/query`  
+**Method**: POST
+
+**Headers**:
+```
+Content-Type: application/json
+Authorization: Bearer {sessionToken}
+x-rks-tenantid: {mspTenantId}
+```
+
+**Request Body Payload**:
+```typescript
+interface networkAPsQueryParams {
+  fields: string[];     // Fields to retrieve
+  pageSize: number;     // Results per page
+  page?: number;        // Page number (optional)
+  total?: number;       // Total count (optional)
+}
+```
+
+**Default Payload**:
+```json
+{
+  "fields": [
+    "serialNumber", "name", "venueId", "networkStatus", "lanPortStatuses",
+    "radioStatuses", "afcStatus", "cellularStatus", "firmwareVersion"
+  ],
+  "pageSize": 10000,
+  "page": 1,
+  "total": 0
+}
+```
+
+**TypeScript Invocation**:
+```typescript
+const aps = await queryAPs(
+  mspTenantId,
+  sessionToken,
+  region
+);
+```
+
+---
+
+### 5. Create/Update Tenant
 **Endpoint**: `{apiUrl}/mspCustomers`  
 **Method**: POST
 
@@ -402,6 +509,39 @@ curl -i -X POST 'https://api.eu.ruckus.cloud/venues/query' \
     "pageSize": 10,
     "defaultPageSize": 10,
     "total": 0
+  }'
+```
+
+Example: Query WiFi Networks endpoint
+```bash
+curl -i -X POST 'https://api.eu.ruckus.cloud/wifiNetworks/query' \
+  -H 'Content-Type: application/json' \
+  -H 'x-rks-tenantid: {mspTenantId}' \
+  -H 'Authorization: Bearer {sessionToken}' \
+  -d '{
+    "searchString":"",
+    "searchTargetFields":["name"],
+    "fields":["name","description","nwSubType","venueApGroups","apSerialNumbers","apCount","clientCount","vlan","cog","ssid","vlanPool","captiveType","id","securityProtocol","dsaeOnboardNetwork","isOweMaster","owePairNetworkId","tunnelWlanEnable","isEnforced"],
+    "page":1,
+    "pageSize":10,
+    "defaultPageSize":10,
+    "total":0,
+    "sortField":"name",
+    "sortOrder":"ASC",
+    "filters":{},
+    "groupFilters":[]
+  }'
+```
+
+Example: Query Access Points endpoint
+```bash
+curl -i -X POST 'https://api.eu.ruckus.cloud/venues/aps/query' \
+  -H 'Content-Type: application/json' \
+  -H 'x-rks-tenantid: {mspTenantId}' \
+  -H 'Authorization: Bearer {sessionToken}' \
+  -d '{
+    "fields":["serialNumber","name","venueId","networkStatus","lanPortStatuses","radioStatuses","afcStatus","cellularStatus","firmwareVersion"],
+    "pageSize":10000
   }'
 ```
 
