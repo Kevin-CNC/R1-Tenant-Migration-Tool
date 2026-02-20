@@ -90,7 +90,6 @@ async fn query_venues(api_url: String, tenant_id: String, token: String, query_d
     }
 }
 
-// Stupid comment here
 
 #[tauri::command]
 async fn querywNetworks(api_url: String, tenant_id: String, token: String, query_data: Value) -> Result<String, String> {
@@ -128,7 +127,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![greet, get_tenant, put_tenant, query_venues])
+        .invoke_handler(tauri::generate_handler![greet, get_tenant, put_tenant, query_venues, querywNetworks])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
