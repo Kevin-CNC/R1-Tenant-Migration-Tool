@@ -39,6 +39,14 @@ interface WifiNetworksQueryParams {
   groupFilters: any[];
 }
 
+
+interface networkAPsQueryParams {
+  fields: string[];
+  pageSize: number;
+  page?: number;
+  total?: number;
+}
+
 const filePath = "userAccounts.json";
 
 
@@ -311,20 +319,28 @@ export const performTenantMigration = async (
       console.log(`✓ Successfully fetched data for tenant ${tenantId}:`, data);
       
 
-      const venues = await getVenues(sourceTenantId, 
+      const sourceVenues = await getVenues(sourceTenantId, 
         sessionToken, 
         sourceMSP.region);
 
-      console.log(`✓ Successfully fetched venues for tenant ${tenantId}:`, venues);
-      console.log(venues);
+      console.log(`✓ Successfully fetched venues for tenant ${tenantId}:`, sourceVenues);
+      console.log(sourceVenues);
 
 
-      const wifiNetworks = await querywNetworks(sourceTenantId, 
+      const sourceWifiNetworks = await querywNetworks(sourceTenantId, 
         sessionToken, 
         sourceMSP.region);
 
-      console.log(`✓ Successfully fetched wifi networks for tenant ${tenantId}:`, wifiNetworks);
-      console.log(wifiNetworks);
+      console.log(`✓ Successfully fetched wifi networks for tenant ${tenantId}:`, sourceWifiNetworks);
+      console.log(sourceWifiNetworks);
+
+
+      const sourceAPs = await queryAllAPs(sourceTenantId, 
+        sessionToken, 
+        sourceMSP.region);
+
+      console.log(`✓ Successfully fetched APs for tenant ${tenantId}:`, sourceAPs);
+
       
     } catch (error) {
       console.error(`Error migrating tenant ${tenantId}:`, error);
@@ -388,6 +404,66 @@ export const getTenantsList = async (_mspId: string): Promise<string[]> => {
   ];
 };
 
+
+// Query APs for a tenant
+// Query Wifi Networks for a tenant
+export const queryAllAPs = async (
+  tenantId: string,
+  token: string,
+  region: Region,
+  customParams?: Partial<networkAPsQueryParams>
+): Promise<networkAPsQueryParams> => {
+  const defaultQueryParams: networkAPsQueryParams = {
+    fields: [
+      "name", "description", "nwSubType", "venueApGroups",
+      "apSerialNumbers", "apCount", "clientCount", "vlan", "cog",
+      "ssid", "vlanPool", "captiveType", "id", "securityProtocol",
+      "dsaeOnboardNetwork", "isOweMaster", "owePairNetworkId",
+      "tunnelWlanEnable", "isEnforced"
+    ],
+    page: 1,
+    pageSize: 10000,
+    total: 0,
+  };
+
+  // Merge custom parameters with defaults
+  const queryParams = { ...defaultQueryParams, ...customParams };
+
+  try {
+    console.log(`Querying wifi networks for tenant ${tenantId} in region ${region}...`);
+    console.log('Query parameters:', JSON.stringify(queryParams, null, 2));
+
+    const response = await invoke<string>('querywNetworks', {
+      apiUrl: getAPIUrlByRegion(region),
+      tenantId: tenantId,
+      token: token.trim(),
+      queryData: queryParams
+    });
+
+    const data: networkAPsQueryParams = JSON.parse(response);
+    console.log('✓ Wifi networks query successful:');
+    console.log('Response:', JSON.stringify(data, null, 2));
+    
+    return data;
+  } catch (error) {
+    console.error('Error querying wifi networks:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    if (errorMessage.includes('HTTP 401')) {
+      throw new Error('Unauthorized: Invalid or expired token');
+    } else if (errorMessage.includes('HTTP 403')) {
+      throw new Error('Forbidden: Insufficient permissions to access wifi networks');
+    } else if (errorMessage.includes('HTTP 404')) {
+      throw new Error('Not Found: Wifi networks endpoint not available');
+    } else if (errorMessage.includes('HTTP 500')) {
+      throw new Error('Internal Server Error: API server encountered an error');
+    } else {
+      throw new Error(`Failed to query wifi networks: ${errorMessage}`);
+    }
+  }
+};
+
+
 // Query Wifi Networks for a tenant
 export const querywNetworks = async (
   tenantId: string,
@@ -449,6 +525,62 @@ export const querywNetworks = async (
       throw new Error('Internal Server Error: API server encountered an error');
     } else {
       throw new Error(`Failed to query wifi networks: ${errorMessage}`);
+    }
+  }
+};
+
+
+/**
+ * Query APs for a tenant
+ */
+export const queryAPs = async (
+  tenantId: string,
+  token: string,
+  region: Region,
+  customParams?: Partial<networkAPsQueryParams>
+): Promise<networkAPsQueryParams> => {
+  // Default query parameters based on curl command
+  const defaultQueryParams: networkAPsQueryParams = {
+    fields: [
+      "serialNumber", "name", "venueId", "networkStatus", "lanPortStatuses",
+      "radioStatuses", "afcStatus", "cellularStatus", "firmwareVersion"
+    ],
+    pageSize: 10000
+  };
+
+  // Merge custom parameters with defaults
+  const queryParams = { ...defaultQueryParams, ...customParams };
+
+  try {
+    console.log(`Querying APs for tenant ${tenantId} in region ${region}...`);
+    console.log('Query parameters:', JSON.stringify(queryParams, null, 2));
+
+    const response = await invoke<string>('query_aps', {
+      apiUrl: getAPIUrlByRegion(region),
+      tenantId: tenantId,
+      token: token.trim(),
+      queryData: queryParams
+    });
+
+    const data: networkAPsQueryParams = JSON.parse(response);
+    console.log('✓ APs query successful:');
+    console.log('Response:', JSON.stringify(data, null, 2));
+    
+    return data;
+  } catch (error) {
+    console.error('Error querying APs:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    if (errorMessage.includes('HTTP 401')) {
+      throw new Error('Unauthorized: Invalid or expired token');
+    } else if (errorMessage.includes('HTTP 403')) {
+      throw new Error('Forbidden: Insufficient permissions to access APs');
+    } else if (errorMessage.includes('HTTP 404')) {
+      throw new Error('Not Found: APs endpoint not available');
+    } else if (errorMessage.includes('HTTP 500')) {
+      throw new Error('Internal Server Error: API server encountered an error');
+    } else {
+      throw new Error(`Failed to query APs: ${errorMessage}`);
     }
   }
 };
