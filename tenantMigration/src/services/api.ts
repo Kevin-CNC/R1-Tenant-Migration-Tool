@@ -1,5 +1,4 @@
-import { MSPAccount, MigrationResult, Region, TenantCreationData, FieldConfig } from "../types";
-import { GET, POST, PUT, DELETE, POSTFormEncoded } from "./httpReqs";
+import { MSPAccount, ECAccount, MigrationResult, Region } from "../types";
 import { fetch } from "@tauri-apps/plugin-http";
 import { writeTextFile, readTextFile, BaseDirectory } from "@tauri-apps/plugin-fs";
 import { invoke } from '@tauri-apps/api/core';
@@ -61,78 +60,7 @@ interface TokenResponse {
   scope?: string;
 }
 
-// Field configurations for tenant creation (based on official Postman collection)
-const TENANT_FIELD_CONFIGS: FieldConfig[] = [
-  // Required fields per Postman collection
-  { fieldName: 'name', label: 'Tenant Name', maxLength: 255, minLength: 2, required: true, type: 'string' },
-  { fieldName: 'tenant_type', label: 'Tenant Type', maxLength: 25, minLength: 0, required: true, type: 'string' },
-  { fieldName: 'service_effective_date', label: 'Service Start Date', maxLength: 255, minLength: 0, required: true, type: 'string' },
-  { fieldName: 'service_expiration_date', label: 'Service End Date', maxLength: 255, minLength: 0, required: true, type: 'string' },
-  { fieldName: 'admin_email', label: 'Admin Email', maxLength: 255, minLength: 0, required: true, type: 'string' },
-  { fieldName: 'admin_firstname', label: 'Admin First Name', maxLength: 64, minLength: 0, required: true, type: 'string' },
-  { fieldName: 'admin_lastname', label: 'Admin Last Name', maxLength: 64, minLength: 0, required: true, type: 'string' },
-  { fieldName: 'admin_role', label: 'Admin Role', maxLength: 255, minLength: 0, required: true, type: 'string' },
-  // Optional address fields (must be strings)
-  { fieldName: 'street_address', label: 'Street Address', maxLength: 255, minLength: 0, required: false, type: 'string' },
-  { fieldName: 'city', label: 'City', maxLength: 255, minLength: 0, required: false, type: 'string' },
-  { fieldName: 'state', label: 'State', maxLength: 255, minLength: 0, required: false, type: 'string' },
-  { fieldName: 'country', label: 'Country', maxLength: 255, minLength: 0, required: false, type: 'string' },
-  { fieldName: 'postal_code', label: 'Postal Code', maxLength: 255, minLength: 0, required: false, type: 'string' },
-  { fieldName: 'phone_number', label: 'Phone Number', maxLength: 255, minLength: 0, required: false, type: 'string' },
-  { fieldName: 'fax_number', label: 'Fax Number', maxLength: 255, minLength: 0, required: false, type: 'string' },
-];
 
-/**
- * Callback type for requesting user input
- */
-export type InputRequester = (
-  fieldName: string,
-  label: string,
-  currentValue: string | null,
-  config: FieldConfig
-) => Promise<string | null>;
-
-/**
- * Validate and collect missing required fields from user
- */
-export const collectMissingFields = async (
-  data: Partial<TenantCreationData>,
-  inputRequester: InputRequester
-): Promise<TenantCreationData> => {
-  const result = { ...data } as any;
-
-  for (const config of TENANT_FIELD_CONFIGS) {
-    const fieldName = config.fieldName;
-    const currentValue = result[fieldName];
-
-    // Skip non-string fields (objects/arrays will be handled separately)
-    if (config.type !== 'string') {
-      if (!currentValue) {
-        if (config.type === 'object') {
-          result[fieldName] = {};
-        } else if (config.type === 'array') {
-          result[fieldName] = [];
-        }
-      }
-      continue;
-    }
-
-    // Check if field is null, undefined, or empty string
-    if (currentValue === null || currentValue === undefined || currentValue === '') {
-      const userInput = await inputRequester(
-        fieldName,
-        config.label,
-        currentValue,
-        config
-      );
-
-      // If user provided input, use it; otherwise keep as empty string
-      result[fieldName] = userInput !== null ? userInput : '';
-    }
-  }
-
-  return result as TenantCreationData;
-};
 
 
 /* Initialize MSP accounts from file storage */
@@ -160,6 +88,88 @@ const saveMSPsToFile = async (): Promise<void> => {
     throw new Error(`Failed to save MSP accounts to file: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
+
+
+// ─── End Customer (EC) Account Storage ───────────────────────────────────────
+
+const ecFilePath = "ecAccounts.json";
+let ecAccounts: ECAccount[] = [];
+let ecIsInitialized = false;
+
+/* Initialize EC accounts from file storage */
+const initializeECs = async (): Promise<void> => {
+  if (ecIsInitialized) return;
+
+  try {
+    const savedData = await readTextFile(ecFilePath, { baseDir: BaseDirectory.AppLocalData });
+    ecAccounts = JSON.parse(savedData);
+  } catch (e) {
+    console.log("No existing EC accounts found, starting fresh.");
+    ecAccounts = [];
+  }
+
+  ecIsInitialized = true;
+};
+
+/* Save EC accounts to file */
+const saveECsToFile = async (): Promise<void> => {
+  try {
+    await writeTextFile(ecFilePath, JSON.stringify(ecAccounts, null, 2), { baseDir: BaseDirectory.AppLocalData });
+    console.log("EC accounts saved successfully");
+  } catch (e) {
+    console.error("File save error:", e);
+    throw new Error(`Failed to save EC accounts to file: ${e instanceof Error ? e.message : String(e)}`);
+  }
+};
+
+/**
+ * Add a new End Customer account tied to an MSP
+ */
+export const addECAccount = async (
+  name: string,
+  tenantId: string,
+  mspId: string,
+  region: Region
+): Promise<ECAccount> => {
+  await initializeECs();
+
+  const newEC: ECAccount = {
+    id: `ec-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    name,
+    tenantId,
+    mspId,
+    region,
+  };
+
+  ecAccounts.push(newEC);
+  await saveECsToFile();
+  return newEC;
+};
+
+/**
+ * Get EC accounts, optionally filtered by region
+ */
+export const getECAccounts = async (region?: Region): Promise<ECAccount[]> => {
+  await initializeECs();
+  if (region) {
+    return ecAccounts.filter((ec) => ec.region === region);
+  }
+  return ecAccounts;
+};
+
+/**
+ * Delete an EC account
+ */
+export const deleteECAccount = async (ecId: string): Promise<boolean> => {
+  await initializeECs();
+  const index = ecAccounts.findIndex((ec) => ec.id === ecId);
+  if (index > -1) {
+    ecAccounts.splice(index, 1);
+    await saveECsToFile();
+    return true;
+  }
+  return false;
+};
 
 
 /* Fetch region-based URL */
@@ -278,74 +288,92 @@ export const deleteMSPAccount = async (accountId: string): Promise<boolean> => {
 };
 
 /**
- * Perform tenant migration between two MSP accounts
+ * Perform tenant migration between two End Customer accounts
  */
 export const performTenantMigration = async (
-  sourceMspId: string,
-  targetMspId: string,
-  tenantIds: string[],
-  inputRequester: InputRequester
+  sourceECId: string,
+  targetECId: string
 ): Promise<MigrationResult> => {
   await initializeMSPs();
+  await initializeECs();
 
-  // Simulate some failures randomly
   const migratedTenants: string[] = [];
   const failedTenants: string[] = [];
 
-  const sourceMSP = mspAccounts.find((a) => a.id === sourceMspId);
-  const targetMSP = mspAccounts.find((a) => a.id === targetMspId);
+  const sourceEC = ecAccounts.find((a) => a.id === sourceECId);
+  const targetEC = ecAccounts.find((a) => a.id === targetECId);
+
+  if (!sourceEC || !targetEC) {
+    throw new Error(`One of the EC accounts not found`);
+  }
+
+  const sourceMSP = mspAccounts.find((a) => a.id === sourceEC.mspId);
+  const targetMSP = mspAccounts.find((a) => a.id === targetEC.mspId);
 
   if (!sourceMSP || !targetMSP) {
-    throw new Error(`One of the MSP accounts (ID ${sourceMspId}) not found`);
+    throw new Error(`Parent MSP account not found for one of the EC accounts`);
   }
-  
-  console.log(`Starting migration with source MSP: ${sourceMSP.name}`);
 
-  for (const tenantId of tenantIds) {
-    try {
-      console.log(`Migrating tenant ${tenantId}...`);
-      const sessionToken = await fetchToken(sourceMSP.tenantId, sourceMSP.clientId, sourceMSP.clientSecret, sourceMSP.region);
-      const targetSessionToken = await fetchToken(targetMSP.tenantId, targetMSP.clientId, targetMSP.clientSecret, targetMSP.region);
+  console.log(`Starting migration: EC "${sourceEC.name}" → EC "${targetEC.name}"`);
+  console.log(`Source MSP: ${sourceMSP.name} | Target MSP: ${targetMSP.name}`);
 
-      const resp = await invoke<string>('get_tenant', {
-        apiUrl: getAPIUrlByRegion(sourceMSP.region),
-        tenantId: tenantId,
-        token: sessionToken.trim()
-      });
+  const tenantId = sourceEC.tenantId;
 
-      const data = JSON.parse(resp);
-      const sourceTenantId = data.tenant_id;
+  try {
+    console.log(`Migrating EC tenant ${tenantId}...`);
 
-      console.log(`✓ Successfully fetched data for tenant ${tenantId}:`, data);
-      
+    const sessionToken = await fetchToken(
+      sourceMSP.tenantId, sourceMSP.clientId, sourceMSP.clientSecret, sourceMSP.region
+    );
+    const targetSessionToken = await fetchToken(
+      targetMSP.tenantId, targetMSP.clientId, targetMSP.clientSecret, targetMSP.region
+    );
 
-      const sourceVenues = await getVenues(sourceTenantId, 
-        sessionToken, 
-        sourceMSP.region);
+    const resp = await invoke<string>('get_tenant', {
+      apiUrl: getAPIUrlByRegion(sourceMSP.region),
+      tenantId: tenantId,
+      token: sessionToken.trim()
+    });
 
-      console.log(`✓ Successfully fetched venues for tenant ${tenantId}:`, sourceVenues);
-      console.log(sourceVenues);
+    const data = JSON.parse(resp);
+    const sourceTenantId = data.tenant_id;
 
+    console.log(`✓ Successfully fetched data for tenant ${tenantId}:`, data);
 
-      const sourceWifiNetworks = await querywNetworks(sourceTenantId, 
-        sessionToken, 
-        sourceMSP.region);
+    const sourceVenues = await getVenues(
+      sourceTenantId,
+      sessionToken,
+      sourceMSP.region
+    );
 
-      console.log(`✓ Successfully fetched wifi networks for tenant ${tenantId}:`, sourceWifiNetworks);
-      console.log(sourceWifiNetworks);
+    console.log(`✓ Successfully fetched venues for tenant ${tenantId}:`, sourceVenues);
+    console.log(sourceVenues);
 
+    const sourceWifiNetworks = await querywNetworks(
+      sourceTenantId,
+      sessionToken,
+      sourceMSP.region
+    );
 
-      const sourceAPs = await queryAllAPs(sourceTenantId, 
-        sessionToken, 
-        sourceMSP.region);
+    console.log(`✓ Successfully fetched wifi networks for tenant ${tenantId}:`, sourceWifiNetworks);
+    console.log(sourceWifiNetworks);
 
-      console.log(`✓ Successfully fetched APs for tenant ${tenantId}:`, sourceAPs);
+    const sourceAPs = await queryAllAPs(
+      sourceTenantId,
+      sessionToken,
+      sourceMSP.region
+    );
 
-      
-    } catch (error) {
-      console.error(`Error migrating tenant ${tenantId}:`, error);
-      failedTenants.push(tenantId);
-    }
+    console.log(`✓ Successfully fetched APs for tenant ${tenantId}:`, sourceAPs);
+
+    // Target session token is available for future write operations
+    console.log(`Target session token obtained for MSP "${targetMSP.name}" (ready for write operations)`);
+    void targetSessionToken;
+
+    migratedTenants.push(tenantId);
+  } catch (error) {
+    console.error(`Error migrating EC tenant ${tenantId}:`, error);
+    failedTenants.push(tenantId);
   }
 
   return {
