@@ -12,6 +12,14 @@ export interface MSPAccount {
   region: Region;
 }
 
+export interface ECAccount {
+  id: string;
+  name: string;
+  tenantId: string;
+  mspId: string;       // References the parent MSPAccount.id
+  region: Region;
+}
+
 export interface TenantMigrationRequest {
   sourceMspId: string;
   targetMspId: string;
@@ -31,12 +39,15 @@ export type AppStep =
   | "main-menu" 
   | "add-msp" 
   | "tenant-migration"
-  | "manage-accounts";
+  | "manage-accounts"
+  | "add-ec"
+  | "manage-ec";
 
 export interface AppState {
   currentStep: AppStep;
   selectedRegion: Region;
   mspAccounts: MSPAccount[];
+  ecAccounts: ECAccount[];
 }
 
 // Tenant creation data structure
