@@ -313,6 +313,8 @@ button {
   font-size: 0.75rem;
   z-index: 10;
   pointer-events: none;
+}
+
 .main-menu-buttons {
   display: flex;
   flex-direction: column;
@@ -403,10 +405,11 @@ button {
 .msp-form {
   width: 100%;
   margin-top: 1.5rem;
+}
+
+/* Wide setup pages for migration and accounts */
 .setup-page.wide {
-  max-width: min(800px, 95vw); /* Responsive width cap */for migration and accounts */
-.setup-page.wide {
-  max-width: 700px;
+  max-width: min(800px, 95vw); /* Responsive width cap */
 }
 
 /* Migration Container */
@@ -695,10 +698,11 @@ button {
   border-radius: 3px;
 }
 
-.tenant-chips::-webkit-scrollbar-thumb,
 .accounts-list::-webkit-scrollbar-thumb {
   background: rgba(216, 144, 57, 0.4);
   border-radius: 3px;
+}
+
 @media (max-width: 600px) {
   .setup-page {
     padding: 1.5rem;
@@ -748,13 +752,6 @@ button {
   .main-menu-buttons {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0.5rem
-  .migration-arrow {
-    transform: rotate(90deg);
-    padding: 0.5rem 0;
-  }
-  
-  .setup-page.wide {
-    max-width: 100%;
+    gap: 0.5rem;
   }
 }
