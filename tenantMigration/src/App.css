@@ -1,15 +1,19 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap');
 
 html,
-body {
+body,
+#root {
   height: 100%;
-  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* Keep app-like feel */
+  width: 100%;
 }
 
 :root {
   font-family: "Space Grotesk", sans-serif;
   font-size: 16px;
-  line-height: 24px;
+  line-height: 1.5;
   font-weight: 400;
 
   color: #0f0f0f;
@@ -19,9 +23,6 @@ body {
   background-size: cover;
   background-attachment: fixed;
 
-  justify-content: center;
-  align-items: center;
-
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -30,13 +31,15 @@ body {
 }
 
 .container {
-  margin: 0;
-  padding: 0;
-  min-height: 100vh;
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
+  overflow-y: auto; /* Allow scrolling if vertical height is too small */
+  padding: 2rem 1rem; /* Add padding for smaller screens */
+  box-sizing: border-box; /* Ensure padding doesn't affect width */
 }
 
 .logo {
@@ -104,26 +107,34 @@ button {
 .setup-page {
   width: 100%;
   max-width: 500px;
-  padding: 2rem;
+  /* Use viewport based max-height to ensure fit on smaller screens */
+  max-height: 90vh;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  background-color: rgba(14, 14, 14, 0.918);
+  /* Remove fixed justification so content flows naturally */
+  background-color: rgba(14, 14, 14, 0.95); /* Slightly darker for better contrast */
   border-radius: 12px;
-  margin-top: 3vw;
+  /* Remove fixed margin-top that pushes content down */
+  /* Add padding */
+  padding: 2rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  overflow-y: auto; /* Internal scrolling if card content is too tall */
+  
+  /* Modern scrollbar hidden by default or styled */
+  scrollbar-width: thin;
+  position: relative;
 }
 
 .setup-page h1 {
-  margin-bottom: 1rem;
-  font-size: 2rem;
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+  font-size: clamp(1.5rem, 4vw, 2rem); /* Responsive font size */
 }
 
 .subtitle {
-  color: #666;
-  margin-bottom: 2.5rem;
-  font-size: 1.1rem;
+  color: #aaa; /* Lighter for dark mode reading */
+  margin-bottom: 1.5rem;
+  font-size: clamp(0.9rem, 2vw, 1.1rem);
 }
 
 .country-selection {
@@ -191,7 +202,10 @@ button {
   display: flex;
   gap: 1rem;
   justify-content: flex-end;
-  margin-top: 2rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1); /* visual separation */
+  width: 100%;
 }
 
 .btn-primary,
@@ -291,19 +305,23 @@ button {
 
 
 .version-p {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  padding: 10px;
-  color: white;
-  z-index: 1000;
-}
-
-/* Main Menu Styles */
+  position: absolute; /* Changed from fixed to absolute within container */
+  top: 1rem;
+  right: 1.5rem;
+  padding: 0;
+  color: rgba(255, 255, 255, 0.5); /* More subtle */
+  font-size: 0.75rem;
+  z-index: 10;
+  pointer-events: none;
 .main-menu-buttons {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
+  width: 100%;
+  margin-top: 1rem;
+  overflow-y: auto; /* Allow scrolling menu items on very short screens */
+  max-height: 60vh;
+  padding: 4px; /* Prevent shadow clipping */
   width: 100%;
   margin-top: 1.5rem;
 }
@@ -385,9 +403,8 @@ button {
 .msp-form {
   width: 100%;
   margin-top: 1.5rem;
-}
-
-/* Wide setup page for migration and accounts */
+.setup-page.wide {
+  max-width: min(800px, 95vw); /* Responsive width cap */for migration and accounts */
 .setup-page.wide {
   max-width: 700px;
 }
@@ -402,6 +419,7 @@ button {
   display: flex;
   align-items: center;
   gap: 1rem;
+  flex-wrap: wrap; /* Allow wrapping on small screens */
   margin-bottom: 2rem;
 }
 
@@ -566,12 +584,16 @@ button {
 /* Accounts List */
 .accounts-list {
   width: 100%;
-  margin-top: 1.5rem;
+  margin-top: 1rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  max-height: 350px;
+  gap: 0.75rem;
+  /* Flex-grow allows the list to take available space instead of fixed height */
+  flex: 1;
+  min-height: 100px; /* Minimum height ensures usability */
+  max-height: 40vh; /* Relative max height */
   overflow-y: auto;
+  padding-right: 0.5rem; /* Space for scrollbar */
 }
 
 .no-accounts {
@@ -677,19 +699,56 @@ button {
 .accounts-list::-webkit-scrollbar-thumb {
   background: rgba(216, 144, 57, 0.4);
   border-radius: 3px;
-}
-
-.tenant-chips::-webkit-scrollbar-thumb:hover,
-.accounts-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(216, 144, 57, 0.6);
-}
-
-/* Responsive adjustments */
 @media (max-width: 600px) {
+  .setup-page {
+    padding: 1.5rem;
+    height: 100%; /* Full height mobile feel */
+    max-height: none;
+    border-radius: 0;
+    margin-top: 0;
+  }
+  
   .msp-selection-row {
     flex-direction: column;
   }
   
+  .migration-arrow {
+    transform: rotate(90deg);
+    padding: 0.5rem 0;
+  }
+  
+  .setup-page.wide {
+    max-width: 100%;
+  }
+
+  .form-actions {
+    flex-direction: column-reverse; /* Stack buttons on mobile, primary on top usually, or bottom for reachability. Here keeping primary bottom */
+  }
+
+  .btn-primary, .btn-secondary {
+    width: 100%;
+  }
+
+  .container {
+    padding: 0; /* Remove padding on mobile to use full width */
+  }
+}
+
+/* Landscape mode on mobile devices */
+@media (max-height: 500px) {
+  .setup-page {
+    margin-top: 0;
+    padding: 1rem;
+  }
+  
+  .logo {
+    height: 3em;
+  }
+  
+  .main-menu-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem
   .migration-arrow {
     transform: rotate(90deg);
     padding: 0.5rem 0;
