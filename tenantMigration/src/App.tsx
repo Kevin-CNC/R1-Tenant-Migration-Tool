@@ -14,8 +14,8 @@ import {
 } from "./services/api";
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faGear, faAnglesRight, faPersonBurst } from '@fortawesome/free-solid-svg-icons'
-
+import { faGear, faAnglesRight, faPersonBurst, faBoltLightning, faChalkboardUser} from '@fortawesome/free-solid-svg-icons'
+//<FontAwesomeIcon icon={faChalkboardUser} />
 
 
 function App() {
@@ -273,7 +273,7 @@ function App() {
               className="menu-button"
               onClick={() => setStep("add-msp")}
             >
-              <FontAwesomeIcon icon={faPersonBurst} style={{color: "#f3f0f9",}} />
+              <FontAwesomeIcon icon={faChalkboardUser} style={{color: "#f3f0f9",}} />
               <span className="menu-text">Add an MSP Account</span>
               <span className="menu-description">
                 Configure a new MSP account for migration
@@ -313,7 +313,7 @@ function App() {
                 className="menu-button secondary"
                 onClick={() => setStep("manage-accounts")}
               >
-                <FontAwesomeIcon icon={faGear} style={{color: "#f3f0f9",}} />
+                <FontAwesomeIcon icon={faBoltLightning} style={{color: "#f3f0f9",}} />
                 <span className="menu-text">Manage MSP Accounts</span>
                 <span className="menu-description">
                   {regionAccounts.length} MSP account(s) configured
