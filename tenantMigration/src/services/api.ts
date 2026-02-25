@@ -317,63 +317,96 @@ export const performTenantMigration = async (
   console.log(`Starting migration: EC "${sourceEC.name}" → EC "${targetEC.name}"`);
   console.log(`Source MSP: ${sourceMSP.name} | Target MSP: ${targetMSP.name}`);
 
-  const tenantId = sourceEC.tenantId;
+  const givenSourceTenantID = sourceEC.tenantId;
+  const givenTargetTenantID = targetEC.tenantId;
 
   try {
-    console.log(`Migrating EC tenant ${tenantId}...`);
+    console.log(`Migrating EC tenant ${givenSourceTenantID}...`);
 
-    const sessionToken = await fetchToken(
+    const sourceSessionToken = await fetchToken(
       sourceMSP.tenantId, sourceMSP.clientId, sourceMSP.clientSecret, sourceMSP.region
     );
-    const targetSessionToken = await fetchToken(
+
+    // If they are the same MSP, reuse token to not make another unnecessary token request
+    const targetSessionToken = (sourceMSP.tenantId === targetMSP.tenantId) ? sourceSessionToken
+    : await fetchToken(
       targetMSP.tenantId, targetMSP.clientId, targetMSP.clientSecret, targetMSP.region
     );
 
-    const resp = await invoke<string>('get_tenant', {
+    // Source tenant data retrieval here
+    const sourceTenResponse = await invoke<string>('get_tenant', {
       apiUrl: getAPIUrlByRegion(sourceMSP.region),
-      tenantId: tenantId,
-      token: sessionToken.trim()
+      tenantId: givenSourceTenantID,
+      token: sourceSessionToken.trim()
     });
 
-    const data = JSON.parse(resp);
-    const sourceTenantId = data.tenant_id;
+    const sourceTenantData = JSON.parse(sourceTenResponse);
+    const sourceTenantId = sourceTenantData.tenant_id;
 
-    console.log(`✓ Successfully fetched data for tenant ${tenantId}:`, data);
+
+    // Source tenant data retrieval here
+    const targetTenResponse = await invoke<string>('get_tenant', {
+      apiUrl: getAPIUrlByRegion(targetMSP.region),
+      tenantId: givenTargetTenantID,
+      token: targetSessionToken.trim()
+    });
+
+    const targetTenantData = JSON.parse(targetTenResponse);
+    const targetTenantId = targetTenantData.tenant_id;
+
+
+    console.log(`✓ Successfully fetched data for tenant ${givenSourceTenantID}:`, sourceTenantData);
 
     const sourceVenues = await getVenues(
       sourceTenantId,
-      sessionToken,
+      sourceSessionToken,
       sourceMSP.region
     );
 
-    console.log(`✓ Successfully fetched venues for tenant ${tenantId}:`, sourceVenues);
+    console.log(`✓ Successfully fetched venues for tenant ${givenSourceTenantID}:`, sourceVenues);
     console.log(sourceVenues);
 
-    const sourceWifiNetworks = await querywNetworks(
+    // Process of addition of the venues from the source tenant to the target tenant
+    for( const venue of sourceVenues.data ){
+        const postResponse = await postVenues(
+          targetTenantId,
+          targetSessionToken,
+          targetMSP.region,
+          venue
+        ) 
+
+        console.log(postResponse);
+    }
+
+
+
+
+    const sourceWifiNetworks = await query_wNetworks(
       sourceTenantId,
-      sessionToken,
+      sourceSessionToken,
       sourceMSP.region
     );
 
-    console.log(`✓ Successfully fetched wifi networks for tenant ${tenantId}:`, sourceWifiNetworks);
+
+    console.log(`✓ Successfully fetched wifi networks for tenant ${givenSourceTenantID}:`, sourceWifiNetworks);
     console.log(sourceWifiNetworks);
 
     const sourceAPs = await queryAllAPs(
       sourceTenantId,
-      sessionToken,
+      sourceSessionToken,
       sourceMSP.region
     );
 
-    console.log(`✓ Successfully fetched APs for tenant ${tenantId}:`, sourceAPs);
+    console.log(`✓ Successfully fetched APs for tenant ${givenSourceTenantID}:`, sourceAPs);
 
     // Target session token is available for future write operations
     console.log(`Target session token obtained for MSP "${targetMSP.name}" (ready for write operations)`);
     void targetSessionToken;
 
-    migratedTenants.push(tenantId);
+    migratedTenants.push(givenSourceTenantID);
   } catch (error) {
-    console.error(`Error migrating EC tenant ${tenantId}:`, error);
-    failedTenants.push(tenantId);
+    console.error(`Error migrating EC tenant ${givenSourceTenantID}:`, error);
+    failedTenants.push(givenSourceTenantID);
   }
 
   return {
@@ -461,7 +494,7 @@ export const queryAllAPs = async (
     console.log(`Querying wifi networks for tenant ${tenantId} in region ${region}...`);
     console.log('Query parameters:', JSON.stringify(queryParams, null, 2));
 
-    const response = await invoke<string>('querywNetworks', {
+    const response = await invoke<string>('query_wNetworks', {
       apiUrl: getAPIUrlByRegion(region),
       tenantId: tenantId,
       token: token.trim(),
@@ -492,8 +525,8 @@ export const queryAllAPs = async (
 };
 
 
-// Query Wifi Networks for a tenant
-export const querywNetworks = async (
+// Query Wifi Networks for an EC tenant
+export const query_wNetworks = async (
   tenantId: string,
   token: string,
   region: Region,
@@ -527,7 +560,7 @@ export const querywNetworks = async (
     console.log(`Querying wifi networks for tenant ${tenantId} in region ${region}...`);
     console.log('Query parameters:', JSON.stringify(queryParams, null, 2));
 
-    const response = await invoke<string>('querywNetworks', {
+    const response = await invoke<string>('query_wNetworks', {
       apiUrl: getAPIUrlByRegion(region),
       tenantId: tenantId,
       token: token.trim(),
@@ -559,7 +592,7 @@ export const querywNetworks = async (
 
 
 /**
- * Query APs for a tenant
+ * Query APs for an EC tenant
  */
 export const queryAPs = async (
   tenantId: string,
@@ -615,14 +648,14 @@ export const queryAPs = async (
 
 
 /**
- * Query venues for a tenant
+ * Query venues for an EC tenant
  */
 export const getVenues = async (
   tenantId: string,
   token: string,
   region: Region,
   customParams?: Partial<VenuesQueryParams>
-): Promise<VenuesQueryResponse> => {
+): Promise<any> => {
   // Default query parameters
   const defaultQueryParams: VenuesQueryParams = {
     fields: [
@@ -630,7 +663,7 @@ export const getVenues = async (
       "networks", "aggregatedApStatus", "switches", "switchClients",
       "clients", "apWiredClients", "edges", "iotControllers", "cog",
       "latitude", "longitude", "status", "id", "isEnforced",
-      "addressLine", "tagList"
+      "addressLine", "tagList", "countryCode", "timezone"
     ],
     searchTargetFields: ["name", "addressLine", "description", "tagList"],
     filters: {},
@@ -657,8 +690,84 @@ export const getVenues = async (
       queryData: queryParams
     });
 
-    const data: VenuesQueryResponse = JSON.parse(response);
+    const data = JSON.parse(response);
     console.log('✓ Venues query successful:');
+    console.log('Data:', data);
+    //console.log('Response:', JSON.stringify(data, null, 2));
+    
+    return data;
+  } catch (error) {
+    console.error('Error querying venues:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    
+    // Parse error message for HTTP status codes
+    if (errorMessage.includes('HTTP 401')) {
+      throw new Error('Unauthorized: Invalid or expired token');
+    } else if (errorMessage.includes('HTTP 403')) {
+      throw new Error('Forbidden: Insufficient permissions to access venues');
+    } else if (errorMessage.includes('HTTP 404')) {
+      throw new Error('Not Found: Venues endpoint not available');
+    } else if (errorMessage.includes('HTTP 500')) {
+      throw new Error('Internal Server Error: API server encountered an error');
+    } else {
+      throw new Error(`Failed to query venues: ${errorMessage}`);
+    }
+  }
+};
+
+
+/**
+ * Creates venue for an EC tenant
+ */
+export const postVenues = async (
+  tenantId: string,
+  token: string,
+  region: Region,
+  venueToCreate: Record<string, any>
+): Promise<any> => {
+  try {
+
+    function idGenerator(length: number = 32): string {
+      const chars = '0123456789abcdefghijklmnopqrstuvwxyz';
+      let result = '';
+      for (let i = 0; i < length; i++) {
+        result += chars[Math.floor(Math.random() * chars.length)];
+      }
+      return result;
+    }
+
+    const venueParameters = {
+        "id": idGenerator(),
+        "name": venueToCreate.name,
+        "description": venueToCreate.description,
+        "tags": venueToCreate.tagList || [],
+        "templateContext": venueToCreate.templateContext || "NONE",
+        "address":{
+          "addressLine":venueToCreate.addressLine,
+          "country": venueToCreate.country,
+          "city": venueToCreate.city,
+          "latitude": venueToCreate.latitude,
+          "longitude": venueToCreate.longitude,
+          "countryCode": venueToCreate.countryCode,
+          "timezone": venueToCreate.timeZone || "Europe/London"
+        }
+      }
+
+    console.log(venueParameters);
+
+
+    console.log(`Querying venues for tenant ${tenantId} in region ${region}...`);
+    console.log('Query parameters:', JSON.stringify(venueParameters, null, 2));
+
+    const response = await invoke<string>('put_venue', {
+      apiUrl: getAPIUrlByRegion(region),
+      tenantId: tenantId,
+      token: token.trim(),
+      venueData: venueParameters
+    });
+
+    const data = JSON.parse(response);
+    console.log('✓ Venues POST successful:');
     console.log('Response:', JSON.stringify(data, null, 2));
     
     return data;
