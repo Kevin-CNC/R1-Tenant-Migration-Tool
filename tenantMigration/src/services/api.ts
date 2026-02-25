@@ -329,16 +329,17 @@ export const performTenantMigration = async (
       targetMSP.tenantId, targetMSP.clientId, targetMSP.clientSecret, targetMSP.region
     );
 
-    const resp = await invoke<string>('get_tenant', {
+    // Source tenant data retrieval here
+    const sourceTenResponse = await invoke<string>('get_tenant', {
       apiUrl: getAPIUrlByRegion(sourceMSP.region),
       tenantId: tenantId,
       token: sessionToken.trim()
     });
 
-    const data = JSON.parse(resp);
-    const sourceTenantId = data.tenant_id;
+    const sourceTenantData = JSON.parse(sourceTenResponse);
+    const sourceTenantId = sourceTenantData.tenant_id;
 
-    console.log(`✓ Successfully fetched data for tenant ${tenantId}:`, data);
+    console.log(`✓ Successfully fetched data for tenant ${tenantId}:`, sourceTenantData);
 
     const sourceVenues = await getVenues(
       sourceTenantId,
@@ -354,6 +355,11 @@ export const performTenantMigration = async (
       sessionToken,
       sourceMSP.region
     );
+
+    // Process of addition of the venues from the source tenant to the target tenant
+
+
+
 
     console.log(`✓ Successfully fetched wifi networks for tenant ${tenantId}:`, sourceWifiNetworks);
     console.log(sourceWifiNetworks);
