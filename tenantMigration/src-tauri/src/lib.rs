@@ -168,6 +168,7 @@ async fn put_venue(api_url: String, tenant_id: String, token: String, venueData:
         .post(&url)
         .header("Authorization", format!("Bearer {}", token))
         .header("Content-Type", "application/json")
+        .header("x-rks-tenantid", tenant_id)
         .json(&body_data)
         .send()
         .await
@@ -193,7 +194,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![greet, get_tenant, put_tenant, query_venues, query_wNetworks, query_aps])
+        .invoke_handler(tauri::generate_handler![greet, get_tenant, put_venue, put_tenant, query_venues, query_wNetworks, query_aps])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
