@@ -367,12 +367,16 @@ export const performTenantMigration = async (
     console.log(sourceVenues);
 
     // Process of addition of the venues from the source tenant to the target tenant
+    for( const venue of sourceVenues.data ){
+        const postResponse = await postVenues(
+          targetTenantId,
+          targetSessionToken,
+          targetMSP.region,
+          venue
+        ) 
 
-    
-
-
-
-
+        console.log(postResponse);
+    }
 
 
 
@@ -651,7 +655,7 @@ export const getVenues = async (
   token: string,
   region: Region,
   customParams?: Partial<VenuesQueryParams>
-): Promise<VenuesQueryResponse> => {
+): Promise<any> => {
   // Default query parameters
   const defaultQueryParams: VenuesQueryParams = {
     fields: [
@@ -659,7 +663,7 @@ export const getVenues = async (
       "networks", "aggregatedApStatus", "switches", "switchClients",
       "clients", "apWiredClients", "edges", "iotControllers", "cog",
       "latitude", "longitude", "status", "id", "isEnforced",
-      "addressLine", "tagList"
+      "addressLine", "tagList", "countryCode", "timezone"
     ],
     searchTargetFields: ["name", "addressLine", "description", "tagList"],
     filters: {},
@@ -686,9 +690,10 @@ export const getVenues = async (
       queryData: queryParams
     });
 
-    const data: VenuesQueryResponse = JSON.parse(response);
+    const data = JSON.parse(response);
     console.log('✓ Venues query successful:');
-    console.log('Response:', JSON.stringify(data, null, 2));
+    console.log('Data:', data);
+    //console.log('Response:', JSON.stringify(data, null, 2));
     
     return data;
   } catch (error) {
@@ -718,44 +723,51 @@ export const postVenues = async (
   tenantId: string,
   token: string,
   region: Region,
-  customParams?: Partial<VenuesQueryParams>
+  venueToCreate: Record<string, any>
 ): Promise<any> => {
-  // Default query parameters
-  const defaultQueryParams: VenuesQueryParams = {
-    fields: [
-      "check-all", "name", "description", "city", "country",
-      "networks", "aggregatedApStatus", "switches", "switchClients",
-      "clients", "apWiredClients", "edges", "iotControllers", "cog",
-      "latitude", "longitude", "status", "id", "isEnforced",
-      "addressLine", "tagList"
-    ],
-    searchTargetFields: ["name", "addressLine", "description", "tagList"],
-    filters: {},
-    sortField: "name",
-    sortOrder: "ASC",
-    page: 1,
-    pageSize: 10,
-    defaultPageSize: 10,
-    total: 0
-  };
-
-
-  // Merge custom parameters with defaults
-  const queryParams = { ...defaultQueryParams, ...customParams };
-
   try {
-    console.log(`Querying venues for tenant ${tenantId} in region ${region}...`);
-    console.log('Query parameters:', JSON.stringify(queryParams, null, 2));
 
-    const response = await invoke<string>('query_venues', {
+    function idGenerator(length: number = 32): string {
+      const chars = '0123456789abcdefghijklmnopqrstuvwxyz';
+      let result = '';
+      for (let i = 0; i < length; i++) {
+        result += chars[Math.floor(Math.random() * chars.length)];
+      }
+      return result;
+    }
+
+    const venueParameters = {
+        "id": idGenerator(),
+        "name": venueToCreate.name,
+        "description": venueToCreate.description,
+        "tags": venueToCreate.tagList || [],
+        "templateContext": venueToCreate.templateContext || "NONE",
+        "address":{
+          "addressLine":venueToCreate.addressLine,
+          "country": venueToCreate.country,
+          "city": venueToCreate.city,
+          "latitude": venueToCreate.latitude,
+          "longitude": venueToCreate.longitude,
+          "countryCode": venueToCreate.countryCode,
+          "timezone": venueToCreate.timeZone || "Europe/London"
+        }
+      }
+
+    console.log(venueParameters);
+
+
+    console.log(`Querying venues for tenant ${tenantId} in region ${region}...`);
+    console.log('Query parameters:', JSON.stringify(venueParameters, null, 2));
+
+    const response = await invoke<string>('put_venue', {
       apiUrl: getAPIUrlByRegion(region),
       tenantId: tenantId,
       token: token.trim(),
-      queryData: queryParams
+      venueData: venueParameters
     });
 
     const data = JSON.parse(response);
-    console.log('✓ Venues query successful:');
+    console.log('✓ Venues POST successful:');
     console.log('Response:', JSON.stringify(data, null, 2));
     
     return data;
