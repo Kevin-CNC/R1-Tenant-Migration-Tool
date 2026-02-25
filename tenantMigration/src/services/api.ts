@@ -16,13 +16,6 @@ interface VenuesQueryParams {
   total: number;
 }
 
-interface VenuesQueryResponse {
-  list: any[];
-  totalCount: number;
-  hasMore: boolean;
-}
-
-
 // Wifi Networks interfaces
 interface WifiNetworksQueryParams {
   searchString: string;
