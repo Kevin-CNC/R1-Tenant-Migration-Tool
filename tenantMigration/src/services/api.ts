@@ -360,7 +360,7 @@ export const performTenantMigration = async (
     console.log(sourceVenues);
 
     // Process of addition of the venues from the source tenant to the target tenant
-    for( const venue of sourceVenues.data ){
+    /* for( const venue of sourceVenues.data ){
         const postResponse = await postVenues(
           targetTenantId,
           targetSessionToken,
@@ -368,12 +368,10 @@ export const performTenantMigration = async (
           venue
         ) 
 
-        console.log(postResponse);
-    }
+        //console.log(postResponse);
+    } */ 
 
-
-
-
+    // Get WLans from source tenants
     const sourceWifiNetworks = await query_wNetworks(
       sourceTenantId,
       sourceSessionToken,
@@ -383,6 +381,12 @@ export const performTenantMigration = async (
 
     console.log(`✓ Successfully fetched wifi networks for tenant ${givenSourceTenantID}:`, sourceWifiNetworks);
     console.log(sourceWifiNetworks);
+
+
+    // Process the addition of all wifi networks
+
+
+
 
     const sourceAPs = await queryAllAPs(
       sourceTenantId,
@@ -530,11 +534,15 @@ export const query_wNetworks = async (
     searchString: "",
     searchTargetFields: ["name"],
     fields: [
-      "name", "description", "nwSubType", "venueApGroups",
-      "apSerialNumbers", "apCount", "clientCount", "vlan", "cog",
-      "ssid", "vlanPool", "captiveType", "id", "securityProtocol",
-      "dsaeOnboardNetwork", "isOweMaster", "owePairNetworkId",
-      "tunnelWlanEnable", "isEnforced"
+      "name","description","nwSubType","venueApGroups",
+      "apSerialNumbers","apCount","clientCount","vlan",
+      "cog","ssid","vlanPool","captiveType","id",
+      "securityProtocol","dsaeOnboardNetwork","isOweMaster","owePairNetworkId",
+      "tunnelWlanEnable","isEnforced","type","isCloudpathEnabled","enableAccountingService",
+      "wlanSecurity","managementFrameProtection","vlanId","passphrase","enable",
+      "enableVlanPooling","accountingInterimUpdates","hotspot20Settings","dnsProxyRules",
+      "accessControlProfileEnable","maxRate","bssMinimumPhyRate",
+      "managementFrameMinimumPhyRate","enableOfdmOnly"
     ],
     page: 1,
     pageSize: 10,
