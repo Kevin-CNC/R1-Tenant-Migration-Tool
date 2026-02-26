@@ -222,7 +222,9 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![greet, get_tenant, put_venue, put_tenant, query_venues, query_wNetworks, query_aps])
+        .invoke_handler(tauri::generate_handler![greet, get_tenant, put_venue, 
+            put_tenant, query_venues, query_wNetworks, query_aps, 
+            post_wifiNetwork])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
