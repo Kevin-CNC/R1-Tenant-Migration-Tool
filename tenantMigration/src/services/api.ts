@@ -29,6 +29,7 @@ interface WifiNetworksQueryParams {
   sortOrder: 'ASC' | 'DESC';
   filters: Record<string, any>;
   groupFilters: any[];
+  data?: any[];
 }
 
 
@@ -384,8 +385,14 @@ export const performTenantMigration = async (
 
 
     // Process the addition of all wifi networks
-
-
+    for (let network of sourceWifiNetworks.data){
+      await postWifiNetwork(
+        targetTenantId,
+        targetSessionToken,
+        targetMSP.region,
+        network
+      )
+    }
 
 
     const sourceAPs = await queryAllAPs(
@@ -463,6 +470,18 @@ export const getTenantsList = async (_mspId: string): Promise<string[]> => {
 };
 
 
+// Helper ID generation function //
+function idGenerator(length: number = 32): string {
+  const chars = '0123456789abcdefghijklmnopqrstuvwxyz';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return result;
+}
+
+
+
 // Query APs for a tenant
 // Query Wifi Networks for a tenant
 export const queryAllAPs = async (
@@ -528,7 +547,7 @@ export const query_wNetworks = async (
   token: string,
   region: Region,
   customParams?: Partial<WifiNetworksQueryParams>
-): Promise<WifiNetworksQueryParams> => {
+): Promise<any> => {
   // Default query parameters - CORRECTED
   const defaultQueryParams: WifiNetworksQueryParams = {
     searchString: "",
@@ -536,7 +555,7 @@ export const query_wNetworks = async (
     fields: [
       "name","description","nwSubType","venueApGroups",
       "apSerialNumbers","apCount","clientCount","vlan",
-      "cog","ssid","vlanPool","captiveType","id",
+      "cog","ssid","vlanPool","captiveType","id", "scheduler",
       "securityProtocol","dsaeOnboardNetwork","isOweMaster","owePairNetworkId",
       "tunnelWlanEnable","isEnforced","type","isCloudpathEnabled","enableAccountingService",
       "wlanSecurity","managementFrameProtection","vlanId","passphrase","enable",
@@ -568,7 +587,7 @@ export const query_wNetworks = async (
       queryData: queryParams
     });
 
-    const data: WifiNetworksQueryParams = JSON.parse(response);
+    const data = JSON.parse(response);
     console.log('✓ Wifi networks query successful:');
     console.log('Response:', JSON.stringify(data, null, 2));
     
@@ -728,15 +747,6 @@ export const postVenues = async (
 ): Promise<any> => {
   try {
 
-    function idGenerator(length: number = 32): string {
-      const chars = '0123456789abcdefghijklmnopqrstuvwxyz';
-      let result = '';
-      for (let i = 0; i < length; i++) {
-        result += chars[Math.floor(Math.random() * chars.length)];
-      }
-      return result;
-    }
-
     const venueParameters = {
         "id": idGenerator(),
         "name": venueToCreate.name,
@@ -787,6 +797,155 @@ export const postVenues = async (
       throw new Error('Internal Server Error: API server encountered an error');
     } else {
       throw new Error(`Failed to query venues: ${errorMessage}`);
+    }
+  }
+};
+
+
+/**
+ * Create WIFI networks
+ */
+export const postWifiNetwork = async (
+  tenantId: string,
+  token: string,
+  region: Region,
+  networkData: Record<string, any>
+): Promise<any> => {
+  try {
+    const advCustom = networkData.wlan?.advancedCustomization || {};
+    const radioCustom = advCustom.radioCustomization || {};
+    const clientIsolOpts = advCustom.clientIsolationOptions || {};
+    const multiLinkOpts = advCustom.multiLinkOperationOptions || {};
+    const qosMapOpts = advCustom.qosMapSetOptions || {};
+    const dnsProxy = advCustom.dnsProxy || {};
+
+    // Build payload using the provided structure
+    const networkPayload: Record<string, any> = {
+      name: networkData.name,
+      type: networkData.nwSubType,
+      description: networkData.description || null,
+      isCloudpathEnabled: false,
+      venues: [],
+      enableAccountingService: false,
+      wlan: {
+        ssid: networkData.name,
+        passphrase: "MyPassphrase1234",
+        wlanSecurity: networkData.securityProtocol,
+        managementFrameProtection: "Disabled",
+        advancedCustomization: {
+          userUplinkRateLimiting: 0,
+          userDownlinkRateLimiting: 0,
+          maxClientsOnWlanPerRadio: 100,
+          enableBandBalancing: true,
+          clientIsolation: false,
+          clientIsolationOptions: {
+            autoVrrp: false
+          },
+          hideSsid: false,
+          forceMobileDeviceDhcp: false,
+          clientLoadBalancingEnable: true,
+          directedThreshold: 5,
+          enableNeighborReport: true,
+          enableFastRoaming: false,
+          mobilityDomainId: 1,
+          radioCustomization: {
+            rfBandUsage: "BOTH",
+            phyTypeConstraint: "NONE"
+          },
+          enableSyslog: false,
+          clientInactivityTimeout: 120,
+          accessControlEnable: false,
+          respectiveAccessControl: true,
+          applicationPolicyEnable: false,
+          l2AclEnable: false,
+          l3AclEnable: false,
+          wifiCallingEnabled: false,
+          proxyARP: false,
+          enableAirtimeDecongestion: false,
+          enableJoinRSSIThreshold: false,
+          joinRSSIThreshold: -85,
+          enableTransientClientManagement: false,
+          joinWaitTime: 30,
+          joinExpireTime: 300,
+          joinWaitThreshold: 10,
+          enableOptimizedConnectivityExperience: false,
+          broadcastProbeResponseDelay: 15,
+          rssiAssociationRejectionThreshold: -75,
+          enableAntiSpoofing: false,
+          enableArpRequestRateLimit: true,
+          arpRequestRateLimit: 15,
+          enableDhcpRequestRateLimit: true,
+          dhcpRequestRateLimit: 15,
+          dnsProxyEnabled: false,
+          dnsProxy: {
+            dnsProxyRules: []
+          },
+          bssPriority: "HIGH",
+          dhcpOption82Enabled: false,
+          dhcpOption82SubOption1Enabled: false,
+          dhcpOption82SubOption1Format: null,
+          dhcpOption82SubOption2Enabled: false,
+          dhcpOption82SubOption2Format: null,
+          dhcpOption82SubOption150Enabled: false,
+          dhcpOption82SubOption151Enabled: false,
+          dhcpOption82SubOption151Format: null,
+          dhcpOption82MacFormat: null,
+          enableMulticastUplinkRateLimiting: false,
+          enableMulticastDownlinkRateLimiting: false,
+          enableMulticastUplinkRateLimiting6G: false,
+          enableMulticastDownlinkRateLimiting6G: false,
+          wifi6Enabled: true,
+          wifi7Enabled: true,
+          multiLinkOperationEnabled: false,
+          multiLinkOperationOptions: {
+            enable24G: true,
+            enable50G: true,
+            enable6G: true
+          },
+          qosMirroringEnabled: true,
+          qosMapSetEnabled: false,
+          qosMapSetOptions: {
+            rules: []
+          },
+          applicationVisibilityEnabled: true
+        },
+        enable: true,
+        vlanId: 1
+      },
+      hotspot20Settings: {}
+    };
+
+    console.log(`POSTing WiFi network "${networkPayload.name}" for tenant ${tenantId} in region ${region}...`);
+    console.log('Network payload:', JSON.stringify(networkPayload, null, 2));
+
+    const response = await invoke<string>('post_wifiNetwork', {
+      apiUrl: getAPIUrlByRegion(region),
+      tenantId: tenantId,
+      token: token.trim(),
+      networkData: networkPayload
+    });
+
+    const data = JSON.parse(response);
+    console.log(`✓ WiFi network "${networkPayload.name}" created successfully`);
+    console.log('Response:', JSON.stringify(data, null, 2));
+
+    return data;
+  } catch (error) {
+    console.error('Error creating WiFi network:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (errorMessage.includes('HTTP 401')) {
+      throw new Error('Unauthorized: Invalid or expired token');
+    } else if (errorMessage.includes('HTTP 403')) {
+      throw new Error('Forbidden: Insufficient permissions to create WiFi networks');
+    } else if (errorMessage.includes('HTTP 404')) {
+      throw new Error('Not Found: WiFi networks endpoint not available');
+    } else if (errorMessage.includes('HTTP 422')) {
+      throw new Error('Unprocessable Entity: Invalid WiFi network payload structure');
+    } else if (errorMessage.includes('HTTP 500')) {
+      throw new Error('Internal Server Error: API server encountered an error');
+    } else {
+      throw new Error(`Failed to create WiFi network: ${errorMessage}`);
     }
   }
 };
