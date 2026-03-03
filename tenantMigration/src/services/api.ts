@@ -361,16 +361,19 @@ export const performTenantMigration = async (
     console.log(sourceVenues);
 
     // Process of addition of the venues from the source tenant to the target tenant
-    /* for( const venue of sourceVenues.data ){
-        const postResponse = await postVenues(
-          targetTenantId,
-          targetSessionToken,
-          targetMSP.region,
-          venue
-        ) 
+    try{
+      for( const venue of sourceVenues.data ){
+          const postResponse = await postVenues(
+            targetTenantId,
+            targetSessionToken,
+            targetMSP.region,
+            venue
+          ) 
+      } 
 
-        //console.log(postResponse);
-    } */ 
+    }catch (error){
+      console.error("Error during venue migration:", error);
+    }
 
     // Get WLans from source tenants
     const sourceWifiNetworks = await query_wNetworks(
