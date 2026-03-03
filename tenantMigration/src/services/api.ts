@@ -360,16 +360,57 @@ export const performTenantMigration = async (
     console.log(`✓ Successfully fetched venues for tenant ${givenSourceTenantID}:`, sourceVenues);
     console.log(sourceVenues);
 
+    const sourceToTargetVenueMap = new Map<string, string>();
+    const targetVenueToDefaultApGroupMap = new Map<string, string>();
+
     // Process of addition of the venues from the source tenant to the target tenant
     try{
-      for( const venue of sourceVenues.data ){
-          const postResponse = await postVenues(
+      for (const venue of extractList(sourceVenues)) {
+        const sourceVenueId = extractId(venue);
+
+        const createdVenue = await postVenues(
+          targetTenantId,
+          targetSessionToken,
+          targetMSP.region,
+          venue
+        );
+
+        const targetVenueId = extractId(createdVenue.response);
+        if (sourceVenueId && targetVenueId) {
+          sourceToTargetVenueMap.set(sourceVenueId, targetVenueId);
+        } else {
+          console.warn('Skipping venue mapping; source or target venue id missing', {
+            sourceVenueId,
+            targetVenueId,
+            sourceVenue: venue,
+            createdVenue,
+          });
+        }
+      }
+
+      for (const targetVenueId of sourceToTargetVenueMap.values()) {
+        console.log(targetVenueId);
+
+        try {
+          const defaultApGroupResp = await getDefaultAPGroup(
             targetTenantId,
             targetSessionToken,
             targetMSP.region,
-            venue
-          ) 
-      } 
+            targetVenueId
+          );
+
+          const firstDefaultGroup = extractList(defaultApGroupResp)[0];
+          const defaultApGroupId = extractId(firstDefaultGroup);
+
+          if (defaultApGroupId) {
+            targetVenueToDefaultApGroupMap.set(targetVenueId, defaultApGroupId);
+          } else {
+            console.warn(`No default AP group found for target venue ${targetVenueId}`);
+          }
+        } catch (error) {
+          console.error(`Failed to fetch default AP group for target venue ${targetVenueId}`, error);
+        }
+      }
 
     }catch (error){
       console.error("Error during venue migration:", error);
@@ -388,23 +429,111 @@ export const performTenantMigration = async (
 
 
     // Process the addition of all wifi networks
-    for (let network of sourceWifiNetworks.data){
-      await postWifiNetwork(
-        targetTenantId,
-        targetSessionToken,
-        targetMSP.region,
-        network
-      )
+    try{
+      for (let network of sourceWifiNetworks.data){
+        await postWifiNetwork(
+          targetTenantId,
+          targetSessionToken,
+          targetMSP.region,
+          network
+        )
+      }
+    }catch(error){
+      console.error("Error during wifi network migration:", error);
     }
 
 
-    const sourceAPs = await queryAllAPs(
+    const sourceAPsPrimary = await queryAPs(
       sourceTenantId,
       sourceSessionToken,
       sourceMSP.region
     );
 
-    console.log(`✓ Successfully fetched APs for tenant ${givenSourceTenantID}:`, sourceAPs);
+    const sourceAPsFallback = await queryAllAPs(
+      sourceTenantId,
+      sourceSessionToken,
+      sourceMSP.region
+    );
+
+    const sourceAPs = dedupeAPs([
+      ...extractList(sourceAPsPrimary),
+      ...extractList(sourceAPsFallback),
+    ]);
+
+    const migratedAPs: string[] = [];
+    const failedAPs: string[] = [];
+
+    for (const AP of sourceAPs) {
+      const serialNumber = AP?.serialNumber ?? AP?.apSerialNumber;
+      const sourceVenueId = AP?.venueId;
+
+      if (!serialNumber || !sourceVenueId) {
+        failedAPs.push(serialNumber ?? 'unknown-serial');
+        console.warn('Skipping AP due to missing serialNumber or venueId', AP);
+        continue;
+      }
+
+      const targetVenueId = sourceToTargetVenueMap.get(sourceVenueId);
+      if (!targetVenueId) {
+        failedAPs.push(serialNumber);
+        console.warn(`No mapped target venue found for AP ${serialNumber} from source venue ${sourceVenueId}`);
+        continue;
+      }
+
+      let defaultApGroupId = targetVenueToDefaultApGroupMap.get(targetVenueId);
+      if (!defaultApGroupId) {
+        try {
+          const defaultApGroupResp = await getDefaultAPGroup(
+            targetTenantId,
+            targetSessionToken,
+            targetMSP.region,
+            targetVenueId
+          );
+          const firstDefaultGroup = extractList(defaultApGroupResp)[0];
+          defaultApGroupId = extractId(firstDefaultGroup) ?? undefined;
+          if (defaultApGroupId) {
+            targetVenueToDefaultApGroupMap.set(targetVenueId, defaultApGroupId);
+          }
+        } catch (error) {
+          console.error(`Failed to lazily fetch default AP group for venue ${targetVenueId}`, error);
+        }
+      }
+
+      if (!defaultApGroupId) {
+        failedAPs.push(serialNumber);
+        console.warn(`No default AP group available for target venue ${targetVenueId}; skipping AP ${serialNumber}`);
+        continue;
+      }
+
+      try {
+        await postAPToGroup(
+          targetTenantId,
+          targetSessionToken,
+          targetMSP.region,
+          targetVenueId,
+          defaultApGroupId,
+          {
+            name: AP?.name ?? `AP-${serialNumber}`,
+            serialNumber,
+            description: AP?.description ?? '',
+            tags: Array.isArray(AP?.tags) ? AP.tags : []
+          }
+        );
+        migratedAPs.push(serialNumber);
+      } catch (error) {
+        console.error(`Failed to migrate AP ${serialNumber}`, error);
+        failedAPs.push(serialNumber);
+      }
+    }
+
+
+
+    console.log(`✓ Successfully processed AP migration for tenant ${givenSourceTenantID}:`, {
+      totalSourceAPs: sourceAPs.length,
+      migratedCount: migratedAPs.length,
+      failedCount: failedAPs.length,
+      failedAPs,
+    });
 
     // Target session token is available for future write operations
     console.log(`Target session token obtained for MSP "${targetMSP.name}" (ready for write operations)`);
@@ -483,6 +612,34 @@ function idGenerator(length: number = 32): string {
   return result;
 }
 
+function extractList(payload: any): any[] {
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.list)) return payload.list;
+  if (Array.isArray(payload)) return payload;
+  return [];
+}
+
+function extractId(payload: any): string | null {
+  if (!payload || typeof payload !== 'object') return null;
+  if (typeof payload.id === 'string' && payload.id.length > 0) return payload.id;
+  if (typeof payload.venueId === 'string' && payload.venueId.length > 0) return payload.venueId;
+  return null;
+}
+
+function dedupeAPs(items: any[]): any[] {
+  const seen = new Set<string>();
+  const result: any[] = [];
+
+  for (const ap of items) {
+    const serial = ap?.serialNumber ?? ap?.apSerialNumber ?? ap?.id ?? JSON.stringify(ap);
+    if (seen.has(serial)) continue;
+    seen.add(serial);
+    result.push(ap);
+  }
+
+  return result;
+}
+
 
 
 // Query APs for a tenant
@@ -492,14 +649,11 @@ export const queryAllAPs = async (
   token: string,
   region: Region,
   customParams?: Partial<networkAPsQueryParams>
-): Promise<networkAPsQueryParams> => {
+): Promise<any> => {
   const defaultQueryParams: networkAPsQueryParams = {
     fields: [
-      "name", "description", "nwSubType", "venueApGroups",
-      "apSerialNumbers", "apCount", "clientCount", "vlan", "cog",
-      "ssid", "vlanPool", "captiveType", "id", "securityProtocol",
-      "dsaeOnboardNetwork", "isOweMaster", "owePairNetworkId",
-      "tunnelWlanEnable", "isEnforced"
+      "serialNumber", "name", "description", "venueId", "networkStatus",
+      "lanPortStatuses", "radioStatuses", "afcStatus", "cellularStatus", "firmwareVersion"
     ],
     page: 1,
     pageSize: 10000,
@@ -510,10 +664,10 @@ export const queryAllAPs = async (
   const queryParams = { ...defaultQueryParams, ...customParams };
 
   try {
-    console.log(`Querying wifi networks for tenant ${tenantId} in region ${region}...`);
+    console.log(`Querying APs for tenant ${tenantId} in region ${region}...`);
     console.log('Query parameters:', JSON.stringify(queryParams, null, 2));
 
-    const response = await invoke<string>('query_wNetworks', {
+    const response = await invoke<string>('query_aps', {
       apiUrl: getAPIUrlByRegion(region),
       tenantId: tenantId,
       token: token.trim(),
@@ -521,24 +675,24 @@ export const queryAllAPs = async (
     });
 
     const data: networkAPsQueryParams = JSON.parse(response);
-    console.log('✓ Wifi networks query successful:');
+    console.log('✓ APs query successful:');
     console.log('Response:', JSON.stringify(data, null, 2));
     
     return data;
   } catch (error) {
-    console.error('Error querying wifi networks:', error);
+    console.error('Error querying APs:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     
     if (errorMessage.includes('HTTP 401')) {
       throw new Error('Unauthorized: Invalid or expired token');
     } else if (errorMessage.includes('HTTP 403')) {
-      throw new Error('Forbidden: Insufficient permissions to access wifi networks');
+      throw new Error('Forbidden: Insufficient permissions to access APs');
     } else if (errorMessage.includes('HTTP 404')) {
-      throw new Error('Not Found: Wifi networks endpoint not available');
+      throw new Error('Not Found: APs endpoint not available');
     } else if (errorMessage.includes('HTTP 500')) {
       throw new Error('Internal Server Error: API server encountered an error');
     } else {
-      throw new Error(`Failed to query wifi networks: ${errorMessage}`);
+      throw new Error(`Failed to query APs: ${errorMessage}`);
     }
   }
 };
@@ -649,6 +803,7 @@ export const queryAPs = async (
     const data: networkAPsQueryParams = JSON.parse(response);
     console.log('✓ APs query successful:');
     console.log('Response:', JSON.stringify(data, null, 2));
+
     
     return data;
   } catch (error) {
@@ -665,6 +820,93 @@ export const queryAPs = async (
       throw new Error('Internal Server Error: API server encountered an error');
     } else {
       throw new Error(`Failed to query APs: ${errorMessage}`);
+    }
+  }
+};
+
+/**
+ * Get default AP group for a venue
+ */
+export const getDefaultAPGroup = async (
+  tenantId: string,
+  token: string,
+  region: Region,
+  venueId: string
+): Promise<any> => {
+  try {
+    const response = await invoke<string>('get_default_ap_group', {
+      apiUrl: getAPIUrlByRegion(region),
+      tenantId,
+      token: token.trim(),
+      venueId
+    });
+
+    const data = JSON.parse(response);
+    console.log(`✓ Default AP group fetched for venue ${venueId}:`, data);
+    return data;
+  } catch (error) {
+    console.error('Error fetching default AP group:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (errorMessage.includes('HTTP 401')) {
+      throw new Error('Unauthorized: Invalid or expired token');
+    } else if (errorMessage.includes('HTTP 403')) {
+      throw new Error('Forbidden: Insufficient permissions to fetch default AP group');
+    } else if (errorMessage.includes('HTTP 404')) {
+      throw new Error('Not Found: Venue or AP group endpoint not available');
+    } else if (errorMessage.includes('HTTP 500')) {
+      throw new Error('Internal Server Error: API server encountered an error');
+    } else {
+      throw new Error(`Failed to fetch default AP group: ${errorMessage}`);
+    }
+  }
+};
+
+/**
+ * Create AP under a venue AP group
+ */
+export const postAPToGroup = async (
+  tenantId: string,
+  token: string,
+  region: Region,
+  venueId: string,
+  apGroupId: string,
+  apData: Record<string, any>
+): Promise<any> => {
+  try {
+    const payload = {
+      name: apData.name,
+      serialNumber: apData.serialNumber,
+      description: apData.description || '',
+      tags: Array.isArray(apData.tags) ? apData.tags : []
+    };
+
+    const response = await invoke<string>('post_ap_to_group', {
+      apiUrl: getAPIUrlByRegion(region),
+      tenantId,
+      token: token.trim(),
+      venueId,
+      apGroupId,
+      apData: payload
+    });
+
+    const data = JSON.parse(response);
+    console.log(`✓ AP ${payload.serialNumber} created in venue ${venueId}, group ${apGroupId}`);
+    return data;
+  } catch (error) {
+    console.error('Error creating AP in AP group:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (errorMessage.includes('HTTP 401')) {
+      throw new Error('Unauthorized: Invalid or expired token');
+    } else if (errorMessage.includes('HTTP 403')) {
+      throw new Error('Forbidden: Insufficient permissions to create AP');
+    } else if (errorMessage.includes('HTTP 404')) {
+      throw new Error('Not Found: Venue/AP group endpoint not available');
+    } else if (errorMessage.includes('HTTP 500')) {
+      throw new Error('Internal Server Error: API server encountered an error');
+    } else {
+      throw new Error(`Failed to create AP in AP group: ${errorMessage}`);
     }
   }
 };
@@ -781,10 +1023,15 @@ export const postVenues = async (
     });
 
     const data = JSON.parse(response);
+    const normalizedData =
+      data && typeof data === 'object' && !Array.isArray(data)
+        ? { id: data.id ?? venueParameters.id, ...data }
+        : data;
+
     console.log('✓ Venues POST successful:');
-    console.log('Response:', JSON.stringify(data, null, 2));
+    console.log('Response:', JSON.stringify(normalizedData, null, 2));
     
-    return data;
+    return normalizedData;
   } catch (error) {
     console.error('Error querying venues:', error);
     const errorMessage = error instanceof Error ? error.message : String(error);
