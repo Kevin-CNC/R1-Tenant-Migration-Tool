@@ -291,6 +291,115 @@ const aps = await queryAPs(
 
 ---
 
+### 4.1 Get Default AP Group for Venue
+**Endpoint**: `{apiUrl}/venues/{venueId}/apGroups?defaultOnly=true`  
+**Method**: GET
+
+**Headers**:
+```
+Content-Type: application/json
+Authorization: Bearer {sessionToken}
+x-rks-tenantid: {tenantId}
+```
+
+**Rust Command**:
+```rust
+#[tauri::command]
+async fn get_default_ap_group(
+  api_url: String,
+  tenant_id: String,
+  token: String,
+  venue_id: String
+) -> Result<String, String>
+```
+
+**TypeScript Invocation**:
+```typescript
+const defaultApGroupResp = await getDefaultAPGroup(
+  targetTenantId,
+  targetSessionToken,
+  region,
+  targetVenueId
+);
+
+const firstDefaultGroup = extractList(defaultApGroupResp)[0];
+const defaultApGroupId = extractId(firstDefaultGroup); // uses `id`
+```
+
+---
+
+### 4.2 Delete AP from Source Venue
+**Endpoint**: `{apiUrl}/venues/{sourceVenueId}/aps/{apSerialNumber}`  
+**Method**: DELETE
+
+**Headers**:
+```
+Content-Type: application/json
+Authorization: Bearer {sourceSessionToken}
+x-rks-tenantid: {idOfSourceTenant}
+```
+
+**Rust Command**:
+```rust
+#[tauri::command]
+async fn delete_ap_from_venue(
+  api_url: String,
+  tenant_id: String,
+  token: String,
+  venue_id: String,
+  ap_serial_number: String
+) -> Result<String, String>
+```
+
+**TypeScript Invocation**:
+```typescript
+await deleteAPFromVenue(
+  sourceTenantId,
+  sourceSessionToken,
+  sourceRegion,
+  sourceVenueId,
+  serialNumber
+);
+```
+
+---
+
+### 4.3 Create AP Under AP Group
+**Endpoint**: `{apiUrl}/venues/{targetVenueId}/apGroups/{defaultAPGroupID}/aps`  
+**Method**: POST
+
+**Headers**:
+```
+Content-Type: application/json
+Authorization: Bearer {targetSessionToken}
+x-rks-tenantid: {idOfTargetTenant}
+```
+
+**Request Body**:
+```json
+{
+  "name": "{NameOfTheAp}",
+  "serialNumber": "{serialNumberOfTheAP}",
+  "description": "{descriptionHere}",
+  "tags": []
+}
+```
+
+**Rust Command**:
+```rust
+#[tauri::command]
+async fn post_ap_to_group(
+  api_url: String,
+  tenant_id: String,
+  token: String,
+  venue_id: String,
+  ap_group_id: String,
+  ap_data: Value
+) -> Result<String, String>
+```
+
+---
+
 ### 5. Create/Update Tenant
 **Endpoint**: `{apiUrl}/mspCustomers`  
 **Method**: POST
@@ -375,6 +484,18 @@ interface MSPAccount {
 2. **Header Validation**: The `x-rks-tenantid` header MUST match the tenant that generated the session token
 3. **Client Credentials**: Stored securely in appData directory with restricted access
 4. **Token Expiration**: Tokens expire per `expires_in` in TokenResponse - implement refresh logic for long-running sessions
+
+### AP Migration Safety Flow
+AP migration uses a staged delete-before-create process:
+
+1. Query and collect source APs with `serialNumber` and `venueId`.
+2. Build source->target venue mapping after venue creation.
+3. Resolve each target venue's default AP group ID.
+4. Stage AP create payloads in memory (`plannedAPMigrations`) before any delete.
+5. Delete source AP from source venue using source tenant token.
+6. Only if delete succeeds, create AP in target venue default AP group.
+
+This ordering ensures creation payload data is preserved before source deletion and prevents creating APs when source delete fails.
 
 ## Error Handling Pattern
 

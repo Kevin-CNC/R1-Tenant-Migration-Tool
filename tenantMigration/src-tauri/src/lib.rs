@@ -213,6 +213,102 @@ async fn post_wifiNetwork(api_url: String, tenant_id: String, token: String, net
     }
 }
 
+#[tauri::command]
+async fn get_default_ap_group(api_url: String, tenant_id: String, token: String, venue_id: String) -> Result<String, String> {
+    let url = format!("{}/venues/{}/apGroups?defaultOnly=true", api_url, venue_id);
+
+    println!("Default AP Group GET URL: {}", url);
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Content-Type", "application/json")
+        .header("x-rks-tenantid", tenant_id)
+        .send()
+        .await
+        .map_err(|e| format!("Request failed: {}", e))?;
+
+    let status = response.status();
+    let body = response.text().await.map_err(|e| format!("Failed to read response: {}", e))?;
+
+    if status.is_success() {
+        Ok(body)
+    } else {
+        Err(format!("HTTP {}: {}", status, body))
+    }
+}
+
+#[tauri::command]
+async fn post_ap_to_group(
+    api_url: String,
+    tenant_id: String,
+    token: String,
+    venue_id: String,
+    ap_group_id: String,
+    ap_data: Value
+) -> Result<String, String> {
+    let url = format!("{}/venues/{}/apGroups/{}/aps", api_url, venue_id, ap_group_id);
+
+    println!("AP POST URL: {}", url);
+    println!("AP Payload: {}", serde_json::to_string_pretty(&ap_data).unwrap());
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post(&url)
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Content-Type", "application/json")
+        .header("x-rks-tenantid", tenant_id)
+        .json(&ap_data)
+        .send()
+        .await
+        .map_err(|e| format!("Request failed: {}", e))?;
+
+    let status = response.status();
+    let body = response.text().await.map_err(|e| format!("Failed to read response: {}", e))?;
+
+    if status.is_success() {
+        Ok(body)
+    } else {
+        Err(format!("HTTP {}: {}", status, body))
+    }
+}
+
+#[tauri::command]
+async fn delete_ap_from_venue(
+    api_url: String,
+    tenant_id: String,
+    token: String,
+    venue_id: String,
+    ap_serial_number: String,
+) -> Result<String, String> {
+    let url = format!("{}/venues/{}/aps/{}", api_url, venue_id, ap_serial_number);
+
+    println!("AP DELETE URL: {}", url);
+
+    let client = reqwest::Client::new();
+    let response = client
+        .delete(&url)
+        .header("Authorization", format!("Bearer {}", token))
+        .header("Content-Type", "application/json")
+        .header("x-rks-tenantid", tenant_id)
+        .send()
+        .await
+        .map_err(|e| format!("Request failed: {}", e))?;
+
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read response: {}", e))?;
+
+    if status.is_success() {
+        Ok(body)
+    } else {
+        Err(format!("HTTP {}: {}", status, body))
+    }
+}
+
 
 
 
@@ -224,7 +320,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![greet, get_tenant, put_venue, 
             put_tenant, query_venues, query_wNetworks, query_aps, 
-            post_wifiNetwork])
+            post_wifiNetwork, get_default_ap_group, post_ap_to_group, delete_ap_from_venue])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
