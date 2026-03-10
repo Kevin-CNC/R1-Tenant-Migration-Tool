@@ -460,6 +460,20 @@ export const performTenantMigration = async (
       ...extractList(sourceAPsFallback),
     ]);
 
+    type PlannedAPMigration = {
+      serialNumber: string;
+      sourceVenueId: string;
+      targetVenueId: string;
+      defaultApGroupId: string;
+      payload: {
+        name: string;
+        serialNumber: string;
+        description: string;
+        tags: any[];
+      };
+    };
+
+    const plannedAPMigrations: PlannedAPMigration[] = [];
     const migratedAPs: string[] = [];
     const failedAPs: string[] = [];
 
@@ -505,24 +519,55 @@ export const performTenantMigration = async (
         continue;
       }
 
+      plannedAPMigrations.push({
+        serialNumber,
+        sourceVenueId,
+        targetVenueId,
+        defaultApGroupId,
+        payload: {
+          name: AP?.name ?? `AP-${serialNumber}`,
+          serialNumber,
+          description: AP?.description ?? '',
+          tags: Array.isArray(AP?.tags) ? AP.tags : []
+        }
+      });
+    }
+
+    console.log(`Prepared ${plannedAPMigrations.length} AP migration item(s). Starting source AP deletion phase...`);
+
+    const readyForCreate: PlannedAPMigration[] = [];
+    for (const item of plannedAPMigrations) {
+      try {
+        await deleteAPFromVenue(
+          sourceTenantId,
+          sourceSessionToken,
+          sourceMSP.region,
+          item.sourceVenueId,
+          item.serialNumber
+        );
+        readyForCreate.push(item);
+      } catch (error) {
+        console.error(`Failed to delete source AP ${item.serialNumber} from venue ${item.sourceVenueId}`, error);
+        failedAPs.push(item.serialNumber);
+      }
+    }
+
+    console.log(`Deleted ${readyForCreate.length}/${plannedAPMigrations.length} source AP(s). Starting target AP creation phase...`);
+
+    for (const item of readyForCreate) {
       try {
         await postAPToGroup(
           targetTenantId,
           targetSessionToken,
           targetMSP.region,
-          targetVenueId,
-          defaultApGroupId,
-          {
-            name: AP?.name ?? `AP-${serialNumber}`,
-            serialNumber,
-            description: AP?.description ?? '',
-            tags: Array.isArray(AP?.tags) ? AP.tags : []
-          }
+          item.targetVenueId,
+          item.defaultApGroupId,
+          item.payload
         );
-        migratedAPs.push(serialNumber);
+        migratedAPs.push(item.serialNumber);
       } catch (error) {
-        console.error(`Failed to migrate AP ${serialNumber}`, error);
-        failedAPs.push(serialNumber);
+        console.error(`Failed to create target AP ${item.serialNumber} in venue ${item.targetVenueId}`, error);
+        failedAPs.push(item.serialNumber);
       }
     }
 
@@ -907,6 +952,46 @@ export const postAPToGroup = async (
       throw new Error('Internal Server Error: API server encountered an error');
     } else {
       throw new Error(`Failed to create AP in AP group: ${errorMessage}`);
+    }
+  }
+};
+
+/**
+ * Delete AP from a venue
+ */
+export const deleteAPFromVenue = async (
+  tenantId: string,
+  token: string,
+  region: Region,
+  venueId: string,
+  apSerialNumber: string
+): Promise<any> => {
+  try {
+    const response = await invoke<string>('delete_ap_from_venue', {
+      apiUrl: getAPIUrlByRegion(region),
+      tenantId,
+      token: token.trim(),
+      venueId,
+      apSerialNumber
+    });
+
+    const data = response ? JSON.parse(response) : {};
+    console.log(`✓ AP ${apSerialNumber} deleted from source venue ${venueId}`);
+    return data;
+  } catch (error) {
+    console.error('Error deleting AP from source venue:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (errorMessage.includes('HTTP 401')) {
+      throw new Error('Unauthorized: Invalid or expired token');
+    } else if (errorMessage.includes('HTTP 403')) {
+      throw new Error('Forbidden: Insufficient permissions to delete AP');
+    } else if (errorMessage.includes('HTTP 404')) {
+      throw new Error('Not Found: AP or venue not found for delete');
+    } else if (errorMessage.includes('HTTP 500')) {
+      throw new Error('Internal Server Error: API server encountered an error');
+    } else {
+      throw new Error(`Failed to delete AP from source venue: ${errorMessage}`);
     }
   }
 };
